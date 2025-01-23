@@ -8,6 +8,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -43,12 +44,27 @@ fun VideoPlayerScreen(
 ) {
     var showPlaylist by remember { mutableStateOf(false) }
     var showQualityDialog by remember { mutableStateOf(false) }
+    var selectedIndex by remember { mutableStateOf(videoInfo.pages.indexOfFirst { it.page == videoInfo.currentPage.page }) }
     
     Box(
         modifier = modifier
             .fillMaxSize()
             .onKeyEvent { event ->
                 when {
+                    // 先处理播放列表显示时的上下键导航
+                    showPlaylist && event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
+                        if (selectedIndex < videoInfo.pages.size - 1) {
+                            selectedIndex++
+                            true
+                        } else false
+                    }
+                    showPlaylist && event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp -> {
+                        if (selectedIndex > 0) {
+                            selectedIndex--
+                            true
+                        } else false
+                    }
+                    // 再处理显示/隐藏播放列表的键
                     event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
                         if (videoInfo.isPlaylist && !showPlaylist) {
                             showPlaylist = true
@@ -60,6 +76,12 @@ fun VideoPlayerScreen(
                             showPlaylist = false
                             true
                         } else false
+                    }
+                    // 最后处理确认选择
+                    showPlaylist && event.type == KeyEventType.KeyDown && event.key == Key.Enter -> {
+                        onPageSelected(videoInfo.pages[selectedIndex])
+                        showPlaylist = false
+                        true
                     }
                     else -> false
                 }
@@ -95,6 +117,7 @@ fun VideoPlayerScreen(
                 PlaylistContent(
                     videoInfo = videoInfo,
                     currentPage = videoInfo.currentPage,
+                    selectedIndex = selectedIndex,
                     onPageSelected = { page ->
                         onPageSelected(page)
                         showPlaylist = false
@@ -139,6 +162,7 @@ fun VideoPlayerScreen(
 private fun PlaylistContent(
     videoInfo: VideoInfo,
     currentPage: VideoPage,
+    selectedIndex: Int,
     onPageSelected: (VideoPage) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -157,17 +181,38 @@ private fun PlaylistContent(
             )
         }
         
-        // 使用 LazyColumn 替代 TvLazyColumn
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+        
+        // 自动滚动到选中项
+        LaunchedEffect(selectedIndex) {
+            listState.animateScrollToItem(
+                index = selectedIndex,
+                scrollOffset = 0  // 将选中项滚动到列表顶部
+            )
+        }
+        
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 8.dp)
+            contentPadding = PaddingValues(vertical = 8.dp),
+            state = listState
         ) {
             items(videoInfo.pages) { page ->
+                val isSelected = page == videoInfo.pages[selectedIndex]
                 VideoPageItem(
                     page = page,
-                    isSelected = page.page == currentPage.page,
+                    isSelected = isSelected,
                     onClick = { onPageSelected(page) },
-                    modifier = Modifier.focusable(true)
+                    modifier = Modifier
+                        .focusable(true)
+                        .onKeyEvent { event ->
+                            when {
+                                event.type == KeyEventType.KeyDown && event.key == Key.Enter -> {
+                                    onPageSelected(page)
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
                 )
             }
         }
@@ -191,15 +236,28 @@ private fun VideoPageItem(
         } else {
             MaterialTheme.colorScheme.surface
         },
-        shape = RoundedCornerShape(0.dp),
+        shape = RoundedCornerShape(4.dp),  // 添加圆角
         tonalElevation = if (isSelected) 8.dp else 1.dp
     ) {
         Row(
             modifier = Modifier
                 .padding(12.dp)
                 .height(IntrinsicSize.Min),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically  // 添加垂直居中对齐
         ) {
+            // 添加序号
+            Text(
+                text = "${page.page}",
+                style = MaterialTheme.typography.titleMedium,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.width(32.dp)
+            )
+            
             // 缩略图
             AsyncImage(
                 model = page.pic,
@@ -219,7 +277,7 @@ private fun VideoPageItem(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "P${page.page}: ${page.part}",
+                    text = page.part,
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isSelected) {
                         MaterialTheme.colorScheme.onPrimaryContainer
