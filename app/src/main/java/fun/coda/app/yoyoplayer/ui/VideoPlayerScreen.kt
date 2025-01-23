@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +30,8 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.key.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 @Composable
 fun VideoPlayerScreen(
@@ -39,8 +42,29 @@ fun VideoPlayerScreen(
     modifier: Modifier = Modifier
 ) {
     var showPlaylist by remember { mutableStateOf(false) }
+    var showQualityDialog by remember { mutableStateOf(false) }
     
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onKeyEvent { event ->
+                when {
+                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
+                        if (videoInfo.isPlaylist && !showPlaylist) {
+                            showPlaylist = true
+                            true
+                        } else false
+                    }
+                    event.type == KeyEventType.KeyDown && event.key == Key.Back -> {
+                        if (showPlaylist) {
+                            showPlaylist = false
+                            true
+                        } else false
+                    }
+                    else -> false
+                }
+            }
+    ) {
         // 主视频播放区域
         AndroidView(
             factory = { context ->
@@ -63,7 +87,9 @@ fun VideoPlayerScreen(
                 .width(320.dp)
         ) {
             Surface(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusable(true),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
             ) {
                 PlaylistContent(
@@ -84,7 +110,11 @@ fun VideoPlayerScreen(
                 .padding(16.dp)
         ) {
             if (videoInfo.isPlaylist) {
-                IconButton(onClick = { showPlaylist = !showPlaylist }) {
+                val interactionSource = remember { MutableInteractionSource() }
+                IconButton(
+                    onClick = { showPlaylist = !showPlaylist },
+                    modifier = Modifier.focusable(true, interactionSource)
+                ) {
                     Icon(
                         imageVector = if (showPlaylist) Icons.Default.Close else Icons.Default.List,
                         contentDescription = if (showPlaylist) "关闭播放列表" else "显示播放列表"
@@ -92,7 +122,10 @@ fun VideoPlayerScreen(
                 }
             }
             
-            IconButton(onClick = { /* 显示清晰度选择对话框 */ }) {
+            IconButton(
+                onClick = { showQualityDialog = true },
+                modifier = Modifier.focusable(true)
+            ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = "清晰度设置"
@@ -124,7 +157,7 @@ private fun PlaylistContent(
             )
         }
         
-        // 分P列表
+        // 使用 LazyColumn 替代 TvLazyColumn
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(vertical = 8.dp)
@@ -133,7 +166,8 @@ private fun PlaylistContent(
                 VideoPageItem(
                     page = page,
                     isSelected = page.page == currentPage.page,
-                    onClick = { onPageSelected(page) }
+                    onClick = { onPageSelected(page) },
+                    modifier = Modifier.focusable(true)
                 )
             }
         }
@@ -144,10 +178,11 @@ private fun PlaylistContent(
 private fun VideoPageItem(
     page: VideoPage,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable(onClick = onClick),
@@ -183,7 +218,6 @@ private fun VideoPageItem(
                     .fillMaxHeight(),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 标题
                 Text(
                     text = "P${page.page}: ${page.part}",
                     style = MaterialTheme.typography.bodyMedium,
@@ -196,7 +230,6 @@ private fun VideoPageItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 
-                // 时长
                 Text(
                     text = formatDuration(page.duration),
                     style = MaterialTheme.typography.bodySmall,

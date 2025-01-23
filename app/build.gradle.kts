@@ -78,4 +78,8 @@ dependencies {
     
     // AndroidView
     implementation("androidx.compose.ui:ui-viewbinding:1.5.4")
+
+    // 添加以下依赖
+    implementation("androidx.tv:tv-foundation:1.0.0-alpha10")
+    implementation("androidx.compose.foundation:foundation:1.5.4")
 }
