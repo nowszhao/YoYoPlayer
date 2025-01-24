@@ -17,26 +17,29 @@ private object YoYoColors {
 
 @Composable
 fun YoYoPlayerTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = darkColorScheme(
-        primary = YoYoColors.Purple80,
-        secondary = YoYoColors.PurpleGrey80,
-        tertiary = YoYoColors.Pink80,
-        surface = Color(0xFF1C1B1F),
-        background = Color(0xFF000000),
-        onSurface = Color.White.copy(alpha = 0.87f)
+    val colorScheme = lightColorScheme(
+        primary = Primary,
+        secondary = Secondary,
+        tertiary = Tertiary,
+        background = Background,
+        surface = Surface,
+        surfaceVariant = SurfaceVariant,
+        onPrimary = OnPrimary,
+        onBackground = OnBackground,
+        onSurface = OnSurface,
+        primaryContainer = AccentLight,
+        onPrimaryContainer = OnPrimary,
+        secondaryContainer = AccentDark,
+        onSecondaryContainer = Color.White,
+        error = Color(0xFFFF6B6B)
     )
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = TvTypography().copy(
-            titleLarge = TvTypography().titleLarge.copy(fontSize = 32.sp),
-            titleMedium = TvTypography().titleMedium.copy(fontSize = 24.sp),
-            bodyLarge = TvTypography().bodyLarge.copy(fontSize = 20.sp),
-            bodyMedium = TvTypography().bodyMedium.copy(fontSize = 18.sp)
-        ),
+        typography = Typography,
         content = content
     )
 }
