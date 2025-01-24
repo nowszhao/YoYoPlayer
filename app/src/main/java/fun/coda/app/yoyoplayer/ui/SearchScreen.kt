@@ -24,7 +24,7 @@ fun SearchScreen(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            label = { Text("输入视频地址或关键词") },
+            label = { Text("输入视频ID，比如BV1vm411Z7ZN") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true

@@ -8,6 +8,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import `fun`.coda.app.yoyoplayer.network.VideoFormat
 import `fun`.coda.app.yoyoplayer.network.VideoPage
 import `fun`.coda.app.yoyoplayer.network.UgcSeason
+import `fun`.coda.app.yoyoplayer.network.SubtitleItem
+import `fun`.coda.app.yoyoplayer.network.NetworkClient
 
 private const val TAG = "BiliVideoParser"
 
@@ -15,6 +17,7 @@ class BiliVideoParser(private val context: Context) {
     private val cookieManager = CookieManager(context)
     private val service = Retrofit.Builder()
         .baseUrl("https://api.bilibili.com/")
+        .client(NetworkClient.create())
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(BiliVideoService::class.java)
@@ -70,6 +73,7 @@ class BiliVideoParser(private val context: Context) {
                     if (urlResponse.isSuccessful && urlResponse.body()?.code == 0) {
                         val data = urlResponse.body()?.data
                         if (data?.durl != null && data.durl.isNotEmpty()) {
+                            val subtitles = getSubtitles(bvid, cid, cookie)
                             return VideoInfo(
                                 url = data.durl.first().url,
                                 qualities = data.accept_quality,
@@ -78,7 +82,8 @@ class BiliVideoParser(private val context: Context) {
                                 currentPage = videoData.pages.find { it.cid == cid } ?: throw Exception("未找到当前分P"),
                                 isPlaylist = videoData.videos > 1,
                                 pages = videoData.pages,
-                                ugcSeason = videoData.ugc_season
+                                ugcSeason = videoData.ugc_season,
+                                subtitles = subtitles
                             )
                         }
                     }
@@ -104,6 +109,18 @@ class BiliVideoParser(private val context: Context) {
         val regex = "p=([0-9]+)".toRegex()
         return regex.find(url)?.groupValues?.get(1)?.toInt() ?: 1
     }
+
+    private suspend fun getSubtitles(bvid: String, cid: Long, cookie: String): List<SubtitleItem> {
+        try {
+            val response = service.getSubtitleInfo(bvid, cid, cookie)
+            if (response.isSuccessful && response.body()?.code == 0) {
+                return response.body()?.data?.subtitle?.list ?: emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取字幕失败", e)
+        }
+        return emptyList()
+    }
 }
 
 data class VideoInfo(
@@ -114,5 +131,6 @@ data class VideoInfo(
     val currentPage: VideoPage,
     val isPlaylist: Boolean,
     val pages: List<VideoPage>,
-    val ugcSeason: UgcSeason?
+    val ugcSeason: UgcSeason?,
+    val subtitles: List<SubtitleItem> = emptyList()
 ) 

@@ -1,5 +1,6 @@
 package `fun`.coda.app.yoyoplayer
 
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -12,10 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
+import androidx.media3.datasource.DefaultDataSourceFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.SingleSampleMediaSource
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import `fun`.coda.app.yoyoplayer.utils.BiliVideoParser
@@ -23,7 +28,9 @@ import `fun`.coda.app.yoyoplayer.ui.theme.YoYoPlayerTheme
 import `fun`.coda.app.yoyoplayer.utils.VideoInfo
 import kotlinx.coroutines.launch
 import `fun`.coda.app.yoyoplayer.network.VideoPage
+import `fun`.coda.app.yoyoplayer.network.SubtitleItem
 import `fun`.coda.app.yoyoplayer.ui.VideoPlayerScreen
+import `fun`.coda.app.yoyoplayer.ui.components.SubtitleSelectionDialog
 
 class VideoPlayerActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
@@ -62,6 +69,11 @@ class VideoPlayerActivity : ComponentActivity() {
                                     val bvid = videoParser.extractBvid(videoUrl)
                                     val cid = info.currentPage.cid
                                     changeVideoQuality(bvid, cid, quality)
+                                }
+                            },
+                            onSubtitleSelected = { subtitle ->
+                                lifecycleScope.launch {
+                                    loadSubtitle(subtitle)
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
@@ -139,6 +151,31 @@ class VideoPlayerActivity : ComponentActivity() {
         }
     }
 
+    private suspend fun loadSubtitle(subtitleItem: SubtitleItem?) {
+        if (subtitleItem == null) {
+            player?.clearMediaItems()
+            return
+        }
+
+        try {
+            val subtitleSource = SingleSampleMediaSource.Factory(DefaultDataSourceFactory(this))
+                .createMediaSource(
+                    MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleItem.subtitle_url))
+                        .setMimeType(MimeTypes.TEXT_VTT)  // B站字幕通常是WebVTT格式
+                        .setLanguage(subtitleItem.lan)
+                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                        .build(),
+                    C.TIME_UNSET
+                )
+
+            player?.setMediaSource(subtitleSource)
+            player?.prepare()
+        } catch (e: Exception) {
+            Log.e(TAG, "加载字幕失败", e)
+            _errorMessage.value = "加载字幕失败: ${e.message}"
+        }
+    }
+
     private fun createPlayerListener() = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
             Log.e(TAG, "Player error", error)
@@ -171,12 +208,15 @@ fun VideoPlayerScreen(
     videoInfo: VideoInfo,
     player: ExoPlayer,
     onPageSelected: (VideoPage) -> Unit,
-    onQualitySelected: (Int) -> Unit
+    onQualitySelected: (Int) -> Unit,
+    onSubtitleSelected: (SubtitleItem?) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var showQualityDialog by remember { mutableStateOf(false) }
-    var qualities by remember { mutableStateOf(listOf<Int>()) }
+    var showSubtitleDialog by remember { mutableStateOf(false) }
+    var selectedSubtitle by remember { mutableStateOf<SubtitleItem?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier) {
         AndroidView(
             modifier = Modifier
                 .fillMaxWidth()
@@ -196,6 +236,15 @@ fun VideoPlayerScreen(
         ) {
             Text("切换清晰度")
         }
+
+        Button(
+            onClick = { showSubtitleDialog = true },
+            modifier = Modifier
+                .padding(16.dp)
+                .width(200.dp)
+        ) {
+            Text("选择字幕")
+        }
     }
 
     if (showQualityDialog) {
@@ -204,7 +253,7 @@ fun VideoPlayerScreen(
             title = { Text("选择清晰度") },
             text = {
                 Column {
-                    qualities.forEach { quality ->
+                    videoInfo.qualities.forEach { quality ->
                         Button(
                             onClick = {
                                 onQualitySelected(quality)
@@ -225,6 +274,19 @@ fun VideoPlayerScreen(
                     Text("取消")
                 }
             }
+        )
+    }
+
+    if (showSubtitleDialog) {
+        SubtitleSelectionDialog(
+            subtitles = videoInfo.subtitles,
+            selectedSubtitle = selectedSubtitle,
+            onSubtitleSelected = { subtitle ->
+                selectedSubtitle = subtitle
+                onSubtitleSelected(subtitle)
+                showSubtitleDialog = false
+            },
+            onDismiss = { showSubtitleDialog = false }
         )
     }
 }

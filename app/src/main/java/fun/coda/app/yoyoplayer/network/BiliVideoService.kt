@@ -24,6 +24,13 @@ interface BiliVideoService {
         @Query("platform") platform: String = "html5",
         @Query("high_quality") highQuality: Int = 1
     ): Response<VideoUrlResponse>
+
+    @GET("x/player/v2")
+    suspend fun getSubtitleInfo(
+        @Query("bvid") bvid: String,
+        @Query("cid") cid: Long,
+        @Header("Cookie") cookie: String
+    ): Response<SubtitleInfoResponse>
 }
 
 data class VideoInfoResponse(
@@ -104,4 +111,26 @@ data class VideoUrl(
     val url: String,
     val size: Long,
     val length: Int
+)
+
+data class SubtitleInfoResponse(
+    val code: Int,
+    val message: String,
+    val data: SubtitleData?
+)
+
+data class SubtitleData(
+    val subtitle: SubtitleInfo
+)
+
+data class SubtitleInfo(
+    val allow_submit: Boolean,
+    val list: List<SubtitleItem>
+)
+
+data class SubtitleItem(
+    val id: Long,
+    val lan: String,          // 语言代码
+    val lan_doc: String,      // 语言名称
+    val subtitle_url: String  // 字幕文件URL
 ) 

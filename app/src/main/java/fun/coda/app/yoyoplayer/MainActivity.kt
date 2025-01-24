@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     MainScreen(
                         onPlayVideo = { url ->
-                            startVideoPlayer(url)
+                            startVideoPlayer("https://www.bilibili.com/video/${url}")
                         }
                     )
                 }

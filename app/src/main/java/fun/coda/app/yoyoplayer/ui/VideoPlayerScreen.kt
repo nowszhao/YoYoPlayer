@@ -34,6 +34,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import android.view.View
+import androidx.compose.material.icons.filled.Subtitles
+import `fun`.coda.app.yoyoplayer.network.SubtitleItem
+import `fun`.coda.app.yoyoplayer.ui.components.SubtitleSelectionDialog
+import android.view.KeyEvent
 
 private const val TAG = "VideoPlayerScreen"
 
@@ -43,11 +47,14 @@ fun VideoPlayerScreen(
     player: ExoPlayer,
     onPageSelected: (VideoPage) -> Unit,
     onQualitySelected: (Int) -> Unit,
+    onSubtitleSelected: (SubtitleItem?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showPlaylist by remember { mutableStateOf(false) }
     var showQualityDialog by remember { mutableStateOf(false) }
+    var showSubtitleDialog by remember { mutableStateOf(false) }
     var selectedIndex by remember { mutableStateOf(0) }
+    var selectedSubtitle by remember { mutableStateOf<SubtitleItem?>(null) }
     
     Box(modifier = modifier.fillMaxSize()) {
         // 视频播放区域
@@ -63,7 +70,43 @@ fun VideoPlayerScreen(
                     })
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .focusable(true)
+                .onKeyEvent { keyEvent ->
+                    when {
+                        keyEvent.type == KeyEventType.KeyDown -> {
+                            when (keyEvent.nativeKeyEvent?.keyCode) {
+                                KeyEvent.KEYCODE_DPAD_CENTER,
+                                KeyEvent.KEYCODE_ENTER,
+                                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                                    // 切换播放/暂停状态
+                                    if (player.isPlaying) {
+                                        player.pause()
+                                    } else {
+                                        player.play()
+                                    }
+                                    true
+                                }
+                                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                    // 快退10秒
+                                    val newPosition = (player.currentPosition - 10_000).coerceAtLeast(0)
+                                    player.seekTo(newPosition)
+                                    true
+                                }
+                                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                    // 快进10秒
+                                    val newPosition = (player.currentPosition + 10_000)
+                                        .coerceAtMost(player.duration)
+                                    player.seekTo(newPosition)
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                        else -> false
+                    }
+                }
         )
         
         // 播放列表抽屉
@@ -97,6 +140,7 @@ fun VideoPlayerScreen(
             showPlaylist = showPlaylist,
             onPlaylistToggle = { showPlaylist = !showPlaylist },
             onQualityClick = { showQualityDialog = true },
+            onSubtitleClick = { showSubtitleDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(24.dp)
@@ -112,6 +156,20 @@ fun VideoPlayerScreen(
                 showQualityDialog = false
             },
             onDismiss = { showQualityDialog = false }
+        )
+    }
+
+    // 添加字幕选择对话框
+    if (showSubtitleDialog) {
+        SubtitleSelectionDialog(
+            subtitles = videoInfo.subtitles,
+            selectedSubtitle = selectedSubtitle,
+            onSubtitleSelected = { subtitle ->
+                selectedSubtitle = subtitle
+                onSubtitleSelected(subtitle)
+                showSubtitleDialog = false
+            },
+            onDismiss = { showSubtitleDialog = false }
         )
     }
 }
@@ -279,6 +337,7 @@ private fun ControlButtons(
     showPlaylist: Boolean,
     onPlaylistToggle: () -> Unit,
     onQualityClick: () -> Unit,
+    onSubtitleClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -295,6 +354,19 @@ private fun ControlButtons(
                 Icon(
                     imageVector = if (showPlaylist) Icons.Default.Close else Icons.Default.List,
                     contentDescription = if (showPlaylist) "关闭播放列表" else "显示播放列表"
+                )
+            }
+        }
+        
+        // 添加字幕按钮
+        if (videoInfo.subtitles.isNotEmpty()) {
+            IconButton(
+                onClick = onSubtitleClick,
+                modifier = Modifier.focusable(true)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Subtitles,
+                    contentDescription = "字幕设置"
                 )
             }
         }

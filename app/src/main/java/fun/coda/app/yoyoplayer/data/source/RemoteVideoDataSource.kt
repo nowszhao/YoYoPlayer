@@ -9,12 +9,21 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import `fun`.coda.app.yoyoplayer.network.NetworkClient
 
 class RemoteVideoDataSource(
     private val baseUrl: String = "https://gitee.com/nowszhao/yoyo/raw/master/test.json",
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: OkHttpClient = NetworkClient.create(),
     private val gson: Gson = Gson()
 ) : VideoDataSource {
+    
+    private val retrofit = Retrofit.Builder()
+        .baseUrl("https://api.bilibili.com/")
+        .client(client)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
     
     override suspend fun getVideoList(): List<VideoListItem> = withContext(Dispatchers.IO) {
         Log.d(TAG, "从远程加载视频列表: $baseUrl")
