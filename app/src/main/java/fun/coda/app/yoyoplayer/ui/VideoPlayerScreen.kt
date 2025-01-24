@@ -38,6 +38,9 @@ import androidx.compose.material.icons.filled.Subtitles
 import `fun`.coda.app.yoyoplayer.network.SubtitleItem
 import `fun`.coda.app.yoyoplayer.ui.components.SubtitleSelectionDialog
 import android.view.KeyEvent
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 
 private const val TAG = "VideoPlayerScreen"
 
@@ -56,6 +59,11 @@ fun VideoPlayerScreen(
     var selectedIndex by remember { mutableStateOf(0) }
     var selectedSubtitle by remember { mutableStateOf<SubtitleItem?>(null) }
     
+    // 处理返回键
+    BackHandler(enabled = showPlaylist) {
+        showPlaylist = false
+    }
+    
     Box(modifier = modifier.fillMaxSize()) {
         // 视频播放区域
         AndroidView(
@@ -72,7 +80,7 @@ fun VideoPlayerScreen(
             },
             modifier = Modifier
                 .fillMaxSize()
-                .focusable(true)
+                .focusable(!showPlaylist) // 当播放列表显示时禁用焦点
                 .onKeyEvent { keyEvent ->
                     when {
                         keyEvent.type == KeyEventType.KeyDown -> {
@@ -80,26 +88,31 @@ fun VideoPlayerScreen(
                                 KeyEvent.KEYCODE_DPAD_CENTER,
                                 KeyEvent.KEYCODE_ENTER,
                                 KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                                    // 切换播放/暂停状态
-                                    if (player.isPlaying) {
-                                        player.pause()
-                                    } else {
-                                        player.play()
-                                    }
-                                    true
+                                    if (!showPlaylist) {
+                                        if (player.isPlaying) player.pause() else player.play()
+                                        true
+                                    } else false
                                 }
                                 KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                    // 快退10秒
-                                    val newPosition = (player.currentPosition - 10_000).coerceAtLeast(0)
-                                    player.seekTo(newPosition)
-                                    true
+                                    if (!showPlaylist) {
+                                        val newPosition = (player.currentPosition - 10_000).coerceAtLeast(0)
+                                        player.seekTo(newPosition)
+                                        true
+                                    } else false
                                 }
                                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                    // 快进10秒
-                                    val newPosition = (player.currentPosition + 10_000)
-                                        .coerceAtMost(player.duration)
-                                    player.seekTo(newPosition)
-                                    true
+                                    if (!showPlaylist) {
+                                        val newPosition = (player.currentPosition + 10_000)
+                                            .coerceAtMost(player.duration)
+                                        player.seekTo(newPosition)
+                                        true
+                                    } else false
+                                }
+                                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                    if (videoInfo.isPlaylist && !showPlaylist) {
+                                        showPlaylist = true
+                                        true
+                                    } else false
                                 }
                                 else -> false
                             }
@@ -123,13 +136,16 @@ fun VideoPlayerScreen(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
             ) {
-                EnhancedPlaylistContent(
+                PlaylistContent(
                     videoInfo = videoInfo,
                     selectedIndex = selectedIndex,
+                    showPlaylist = showPlaylist,
                     onPageSelected = { page, index ->
                         selectedIndex = index
                         onPageSelected(page)
-                    }
+                        showPlaylist = false
+                    },
+                    onClose = { showPlaylist = false }
                 )
             }
         }
@@ -177,12 +193,12 @@ fun VideoPlayerScreen(
 @Composable
 private fun PlaylistContent(
     videoInfo: VideoInfo,
-    currentPage: VideoPage,
     selectedIndex: Int,
-    onPageSelected: (VideoPage) -> Unit
+    showPlaylist: Boolean,
+    onPageSelected: (VideoPage, Int) -> Unit,
+    onClose: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // 标题栏
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -198,37 +214,74 @@ private fun PlaylistContent(
         }
         
         val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+        var currentFocusIndex by remember { mutableStateOf(selectedIndex) }
         
         // 自动滚动到选中项
-        LaunchedEffect(selectedIndex) {
+        LaunchedEffect(currentFocusIndex) {
             listState.animateScrollToItem(
-                index = selectedIndex,
-                scrollOffset = 0  // 将选中项滚动到列表顶部
+                index = currentFocusIndex,
+                scrollOffset = 0
             )
         }
         
+        // 当播放列表显示时自动请求焦点
+        val focusRequester = remember { FocusRequester() }
+        LaunchedEffect(showPlaylist) {
+            if (showPlaylist) {
+                focusRequester.requestFocus()
+            }
+        }
+        
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            state = listState
-        ) {
-            items(videoInfo.pages) { page ->
-                val isSelected = page == videoInfo.pages[selectedIndex]
-                VideoPageItem(
-                    page = page,
-                    isSelected = isSelected,
-                    onClick = { onPageSelected(page) },
-                    modifier = Modifier
-                        .focusable(true)
-                        .onKeyEvent { event ->
-                            when {
-                                event.type == KeyEventType.KeyDown && event.key == Key.Enter -> {
-                                    onPageSelected(page)
+            modifier = Modifier
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable(true)
+                .onKeyEvent { event ->
+                    when {
+                        event.type == KeyEventType.KeyDown -> {
+                            when (event.nativeKeyEvent?.keyCode) {
+                                KeyEvent.KEYCODE_DPAD_UP -> {
+                                    if (currentFocusIndex > 0) {
+                                        currentFocusIndex--
+                                        true
+                                    } else false
+                                }
+                                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                    if (currentFocusIndex < videoInfo.pages.size - 1) {
+                                        currentFocusIndex++
+                                        true
+                                    } else false
+                                }
+                                KeyEvent.KEYCODE_DPAD_CENTER,
+                                KeyEvent.KEYCODE_ENTER,
+                                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                                    onPageSelected(videoInfo.pages[currentFocusIndex], currentFocusIndex)
+                                    true
+                                }
+                                KeyEvent.KEYCODE_BACK -> {
+                                    onClose()
                                     true
                                 }
                                 else -> false
                             }
                         }
+                        else -> false
+                    }
+                },
+            contentPadding = PaddingValues(vertical = 8.dp),
+            state = listState
+        ) {
+            items(videoInfo.pages) { page ->
+                val isSelected = videoInfo.pages.indexOf(page) == currentFocusIndex
+                VideoPageItem(
+                    page = page,
+                    isSelected = isSelected,
+                    onClick = { 
+                        val index = videoInfo.pages.indexOf(page)
+                        currentFocusIndex = index
+                        onPageSelected(page, index)
+                    }
                 )
             }
         }
@@ -379,66 +432,6 @@ private fun ControlButtons(
                 imageVector = Icons.Default.Settings,
                 contentDescription = "清晰度设置"
             )
-        }
-    }
-}
-
-@Composable
-private fun EnhancedPlaylistContent(
-    videoInfo: VideoInfo,
-    selectedIndex: Int,
-    onPageSelected: (VideoPage, Int) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 标题栏
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            tonalElevation = 3.dp
-        ) {
-            Text(
-                text = videoInfo.title,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(16.dp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        
-        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
-        
-        // 自动滚动到选中项
-        LaunchedEffect(selectedIndex) {
-            listState.animateScrollToItem(
-                index = selectedIndex,
-                scrollOffset = 0  // 将选中项滚动到列表顶部
-            )
-        }
-        
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            state = listState
-        ) {
-            items(videoInfo.pages) { page ->
-                val isSelected = page == videoInfo.pages[selectedIndex]
-                VideoPageItem(
-                    page = page,
-                    isSelected = isSelected,
-                    onClick = { onPageSelected(page, videoInfo.pages.indexOf(page)) },
-                    modifier = Modifier
-                        .focusable(true)
-                        .onKeyEvent { event ->
-                            when {
-                                event.type == KeyEventType.KeyDown && event.key == Key.Enter -> {
-                                    onPageSelected(page, videoInfo.pages.indexOf(page))
-                                    true
-                                }
-                                else -> false
-                            }
-                        }
-                )
-            }
         }
     }
 }
