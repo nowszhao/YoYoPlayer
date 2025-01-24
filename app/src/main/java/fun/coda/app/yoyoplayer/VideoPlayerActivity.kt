@@ -126,7 +126,7 @@ class VideoPlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun changeVideoQuality(bvid: String, cid: Int, quality: Int) {
+    private fun changeVideoQuality(bvid: String, cid: Long, quality: Int) {
         lifecycleScope.launch {
             try {
                 val videoInfo = videoParser.parseVideoUrl("https://www.bilibili.com/video/$bvid?p=$cid")

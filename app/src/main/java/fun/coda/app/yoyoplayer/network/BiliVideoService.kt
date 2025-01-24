@@ -13,7 +13,7 @@ interface BiliVideoService {
     @GET("x/player/playurl")
     suspend fun getVideoUrl(
         @Query("bvid") bvid: String,
-        @Query("cid") cid: Int,
+        @Query("cid") cid: Long,
         @Query("qn") quality: Int = 80,
         @Query("fnval") fnval: Int = 1,
         @Query("fnver") fnver: Int = 0,
@@ -31,7 +31,7 @@ data class VideoInfoResponse(
 
 data class VideoInfoData(
     val bvid: String,
-    val cid: Int,
+    val cid: Long,
     val title: String,
     val desc: String,
     val pic: String,
@@ -41,7 +41,7 @@ data class VideoInfoData(
 )
 
 data class VideoPage(
-    val cid: Int,
+    val cid: Long,
     val page: Int,
     val part: String,
     val duration: Int,

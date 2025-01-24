@@ -48,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import `fun`.coda.app.yoyoplayer.ui.components.TagBar
 
 @Composable
 fun FeaturedScreen(
@@ -59,6 +60,8 @@ fun FeaturedScreen(
     val loadingProgress by viewModel.loadingProgress.collectAsState()
     val error by viewModel.error.collectAsState()
     val currentSource by viewModel.dataSource.collectAsState()
+    val tags by viewModel.tags.collectAsState()
+    val selectedTag by viewModel.selectedTag.collectAsState()
     
     Row(modifier = Modifier.fillMaxSize()) {
         // 左侧导航栏
@@ -84,6 +87,43 @@ fun FeaturedScreen(
                         onPlayVideo = onPlayVideo,
                         modifier = Modifier.fillMaxSize()
                     )
+                }
+                MainViewModel.DataSource.ONLINE -> {
+                    Column {
+                        // 添加标签栏
+                        TagBar(
+                            tags = tags,
+                            selectedTag = selectedTag,
+                            onTagSelected = { viewModel.selectTag(it) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        
+                        // 视频网格
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (isLoading && videoList.isEmpty()) {
+                                LoadingIndicator(
+                                    progress = loadingProgress,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            }
+                            
+                            error?.let {
+                                ErrorMessage(
+                                    message = it,
+                                    onRetry = { viewModel.refresh() },
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            }
+                            
+                            if (!isLoading || videoList.isNotEmpty()) {
+                                VideoGrid(
+                                    videos = videoList,
+                                    onVideoSelected = onPlayVideo,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
                 }
                 else -> {
                     if (isLoading && videoList.isEmpty()) {
@@ -126,7 +166,7 @@ private fun NavigationSidebar(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "YoYo Player",
+            text = "YoYo播放器",
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(vertical = 24.dp)
         )
@@ -169,10 +209,10 @@ private fun VideoGrid(
     modifier: Modifier = Modifier
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 400.dp),
+        columns = GridCells.Adaptive(minSize = 300.dp),
         contentPadding = PaddingValues(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = modifier
     ) {
         items(videos.size) { index ->

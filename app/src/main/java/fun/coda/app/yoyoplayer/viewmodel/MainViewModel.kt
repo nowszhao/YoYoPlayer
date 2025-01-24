@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.asStateFlow
+import `fun`.coda.app.yoyoplayer.model.Tag
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = VideoRepository(application)
@@ -30,6 +31,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     private val _dataSource = MutableStateFlow(DataSource.LOCAL)
     val dataSource = _dataSource.asStateFlow()
+    
+    private val _tags = MutableStateFlow<List<Tag>>(emptyList())
+    val tags = _tags.asStateFlow()
+    
+    private val _selectedTag = MutableStateFlow<Tag?>(null)
+    val selectedTag = _selectedTag.asStateFlow()
     
     init {
         loadVideos()
@@ -53,6 +60,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    fun selectTag(tag: Tag?) {
+        _selectedTag.value = tag
+        filterVideosByTag()
+    }
+    
+    private fun filterVideosByTag() {
+        viewModelScope.launch {
+            val tag = _selectedTag.value
+            if (tag == null) {
+                // 如果没有选中标签，显示所有视频
+                loadVideos()
+            } else {
+                // 根据标签过滤视频
+                val filteredVideos = _videoList.value.filter { video ->
+                    video.tags?.contains(tag.name) == true
+                }
+                _videoList.value = filteredVideos
+            }
+        }
+    }
+    
+    private fun updateTags(videos: List<VideoListItem>) {
+        // 从视频列表中提取标签
+        val tagMap = mutableMapOf<String, Int>()
+        videos.forEach { video ->
+            video.tags?.forEach { tag ->
+                tagMap[tag] = (tagMap[tag] ?: 0) + 1
+            }
+        }
+        
+        _tags.value = tagMap.map { Tag(it.key, it.value) }.sortedBy { it.name }
+    }
+    
     private fun loadVideos() {
         viewModelScope.launch {
             Log.d(TAG, "开始加载视频...")
@@ -65,6 +105,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     Log.d(TAG, "收到视频列表更新: ${videos.size} 个视频")
                     Log.d(TAG, "视频列表内容: ${videos.map { it.title }}")
                     _videoList.value = videos
+                    updateTags(videos) // 更新标签列表
                     
                     // 计算加载进度
                     val loadedCount = videos.count { !it.isLoading }
