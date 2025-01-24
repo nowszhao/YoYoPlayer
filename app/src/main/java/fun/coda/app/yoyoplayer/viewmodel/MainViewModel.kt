@@ -26,8 +26,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
     
+    private val _dataSource = MutableStateFlow(false) // false 表示本地数据源
+    val dataSource: StateFlow<Boolean> = _dataSource
+    
     init {
         loadVideos()
+    }
+    
+    fun setDataSource(useRemote: Boolean) {
+        if (_dataSource.value != useRemote) {
+            _dataSource.value = useRemote
+            repository.setDataSource(useRemote)
+            refresh()
+        }
     }
     
     private fun loadVideos() {

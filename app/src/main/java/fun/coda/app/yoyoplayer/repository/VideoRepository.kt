@@ -9,6 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import `fun`.coda.app.yoyoplayer.data.source.LocalVideoDataSource
+import `fun`.coda.app.yoyoplayer.data.source.RemoteVideoDataSource
+import `fun`.coda.app.yoyoplayer.data.source.VideoDataSource
 
 private const val TAG = "VideoRepository"
 
@@ -17,11 +20,22 @@ class VideoRepository(
     private val jsonParser: JsonParser = JsonParser(context),
     private val videoParser: BiliVideoParser = BiliVideoParser()
 ) {
+    private var currentDataSource: VideoDataSource = LocalVideoDataSource(context)
+    
+    fun setDataSource(useRemote: Boolean) {
+        currentDataSource = if (useRemote) {
+            RemoteVideoDataSource()
+        } else {
+            LocalVideoDataSource(context)
+        }
+        Log.d(TAG, "切换到${if (useRemote) "远程" else "本地"}数据源")
+    }
+
     fun getVideosWithDetails(): Flow<List<VideoListItem>> = flow {
         try {
             // 1. 加载基础视频列表
             Log.d(TAG, "开始加载视频列表...")
-            val basicVideos = jsonParser.parseVideoList()
+            val basicVideos = currentDataSource.getVideoList()
             Log.d(TAG, "基础视频列表加载完成: ${basicVideos.size} 个视频")
             
             // 发送初始状态
@@ -100,4 +114,8 @@ class VideoRepository(
             emit(emptyList())
         }
     }.flowOn(Dispatchers.IO)
+
+    companion object {
+        private const val TAG = "VideoRepository"
+    }
 } 
