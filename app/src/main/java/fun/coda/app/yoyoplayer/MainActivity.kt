@@ -44,28 +44,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(onPlayVideo: (String) -> Unit) {
-    var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("精选", "搜索")
-    
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedTabIndex) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTabIndex == index,
-                    onClick = { selectedTabIndex = index },
-                    text = { Text(title) }
-                )
-            }
-        }
-        
-        when (selectedTabIndex) {
-            0 -> FeaturedScreen(onPlayVideo = onPlayVideo)
-            1 -> VideoInputScreen(onPlayVideo = onPlayVideo)
-        }
-    }
+    FeaturedScreen(onPlayVideo = onPlayVideo)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

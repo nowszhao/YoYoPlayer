@@ -86,4 +86,7 @@ dependencies {
     // ViewModel 相关依赖
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+
+    // 使用正确的 TV Material3 依赖
+    implementation("androidx.tv:tv-material:1.0.0-alpha10")
 }

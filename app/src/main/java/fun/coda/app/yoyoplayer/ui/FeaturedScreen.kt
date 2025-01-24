@@ -30,6 +30,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusState
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.AssistChip
+import `fun`.coda.app.yoyoplayer.ui.components.LoadingIndicator
+import `fun`.coda.app.yoyoplayer.ui.components.ErrorMessage
+import `fun`.coda.app.yoyoplayer.ui.components.NavigationButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 
 @Composable
 fun FeaturedScreen(
@@ -40,94 +58,54 @@ fun FeaturedScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
     val error by viewModel.error.collectAsState()
-    val isRemoteSource by viewModel.dataSource.collectAsState()
+    val currentSource by viewModel.dataSource.collectAsState()
     
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 数据源切换栏
-        Row(
+    Row(modifier = Modifier.fillMaxSize()) {
+        // 左侧导航栏
+        NavigationSidebar(
+            currentSource = currentSource,
+            onSourceChanged = { viewModel.setDataSource(it) },
+            onRefresh = { viewModel.refresh() },
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .width(240.dp)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.surface)
+        )
+        
+        // 主内容区域
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("数据源:")
-                Switch(
-                    checked = isRemoteSource,
-                    onCheckedChange = { viewModel.setDataSource(it) },
-                    thumbContent = if (isRemoteSource) {
-                        { Icon(Icons.Default.Cloud, null) }
-                    } else {
-                        { Icon(Icons.Default.Storage, null) }
-                    }
-                )
-                Text(if (isRemoteSource) "远程" else "本地")
-            }
-            
-            IconButton(onClick = { viewModel.refresh() }) {
-                Icon(Icons.Default.Refresh, "刷新")
-            }
-        }
-
-        // 原有的视频列表显示逻辑保持不变
-        Box(modifier = Modifier.weight(1f)) {
-            if (isLoading && videoList.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(50.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    LinearProgressIndicator(
-                        progress = loadingProgress,
-                        modifier = Modifier.width(200.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "加载中... ${(loadingProgress * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodyMedium
+            when (currentSource) {
+                MainViewModel.DataSource.SEARCH -> {
+                    SearchScreen(
+                        onPlayVideo = onPlayVideo,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-            }
-            
-            error?.let {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { viewModel.refresh() }) {
-                        Text("重试")
+                else -> {
+                    if (isLoading && videoList.isEmpty()) {
+                        LoadingIndicator(
+                            progress = loadingProgress,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
                     }
-                }
-            }
-            
-            if (!isLoading || videoList.isNotEmpty()) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 300.dp),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(videoList.size) { index ->
-                        VideoCard(
-                            video = videoList[index],
-                            onPlayVideo = onPlayVideo
+                    
+                    error?.let {
+                        ErrorMessage(
+                            message = it,
+                            onRetry = { viewModel.refresh() },
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    
+                    if (!isLoading || videoList.isNotEmpty()) {
+                        VideoGrid(
+                            videos = videoList,
+                            onVideoSelected = onPlayVideo,
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                 }
@@ -137,76 +115,168 @@ fun FeaturedScreen(
 }
 
 @Composable
-private fun VideoCard(
-    video: VideoListItem,
-    onPlayVideo: (String) -> Unit
+private fun NavigationSidebar(
+    currentSource: MainViewModel.DataSource,
+    onSourceChanged: (MainViewModel.DataSource) -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    Column(
+        modifier = modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "YoYo Player",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(vertical = 24.dp)
+        )
+
+        NavigationButton(
+            icon = Icons.Default.Cloud,
+            text = "在线视频",
+            selected = currentSource == MainViewModel.DataSource.ONLINE,
+            onClick = { onSourceChanged(MainViewModel.DataSource.ONLINE) }
+        )
+
+        NavigationButton(
+            icon = Icons.Default.Search,
+            text = "搜索视频",
+            selected = currentSource == MainViewModel.DataSource.SEARCH,
+            onClick = { onSourceChanged(MainViewModel.DataSource.SEARCH) }
+        )
+
+        NavigationButton(
+            icon = Icons.Default.Storage,
+            text = "本地视频",
+            selected = currentSource == MainViewModel.DataSource.LOCAL,
+            onClick = { onSourceChanged(MainViewModel.DataSource.LOCAL) }
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+        
+        NavigationButton(
+            icon = Icons.Default.Refresh,
+            text = "刷新",
+            onClick = onRefresh
+        )
+    }
+}
+
+@Composable
+private fun VideoGrid(
+    videos: List<VideoListItem>,
+    onVideoSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 400.dp),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = modifier
+    ) {
+        items(videos.size) { index ->
+            EnhancedVideoCard(
+                video = videos[index],
+                onVideoSelected = onVideoSelected
+            )
+        }
+    }
+}
+
+@Composable
+private fun EnhancedVideoCard(
+    video: VideoListItem,
+    onVideoSelected: (String) -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
-            .clickable(enabled = !video.isLoading) { onPlayVideo(video.videoUrl) }
+            .scale(if (isFocused) 1.05f else 1f)
+            .focusable(true)
+            .onFocusChanged { focusState ->
+                isFocused = focusState.isFocused
+            }
+            .clickable { onVideoSelected(video.videoUrl) },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isFocused) 16.dp else 4.dp
+        ),
+        border = if (isFocused) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else null
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = video.thumbnail,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            
+            // 视频信息覆盖层
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.8f)
+                            )
+                        )
+                    )
+            )
+            
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = video.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    video.tags.take(2).forEach { tag ->
+                        AssistChip(
+                            onClick = { },
+                            label = { Text(tag) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            )
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    if (video.duration > 0) {
+                        Text(
+                            text = formatDuration(video.duration),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+            
             if (video.isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(48.dp)
                         .align(Alignment.Center)
                 )
-            } else {
-                // 缩略图
-                AsyncImage(
-                    model = video.thumbnail,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                
-                // 视频信息覆盖层
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // 标题
-                    Text(
-                        text = video.title.ifEmpty { "加载中..." },
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 标签
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            video.tags.forEach { tag ->
-                                AssistChip(
-                                    onClick = { },
-                                    label = { Text(tag) }
-                                )
-                            }
-                        }
-                        
-                        // 时长
-                        if (video.duration > 0) {
-                            Text(
-                                text = formatDuration(video.duration),
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
             }
         }
     }

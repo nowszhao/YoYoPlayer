@@ -33,6 +33,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import android.view.View
+
+private const val TAG = "VideoPlayerScreen"
 
 @Composable
 fun VideoPlayerScreen(
@@ -44,61 +47,26 @@ fun VideoPlayerScreen(
 ) {
     var showPlaylist by remember { mutableStateOf(false) }
     var showQualityDialog by remember { mutableStateOf(false) }
-    var selectedIndex by remember { mutableStateOf(videoInfo.pages.indexOfFirst { it.page == videoInfo.currentPage.page }) }
+    var selectedIndex by remember { mutableStateOf(0) }
     
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .onKeyEvent { event ->
-                when {
-                    // 先处理播放列表显示时的上下键导航
-                    showPlaylist && event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
-                        if (selectedIndex < videoInfo.pages.size - 1) {
-                            selectedIndex++
-                            true
-                        } else false
-                    }
-                    showPlaylist && event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp -> {
-                        if (selectedIndex > 0) {
-                            selectedIndex--
-                            true
-                        } else false
-                    }
-                    // 再处理显示/隐藏播放列表的键
-                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
-                        if (videoInfo.isPlaylist && !showPlaylist) {
-                            showPlaylist = true
-                            true
-                        } else false
-                    }
-                    event.type == KeyEventType.KeyDown && event.key == Key.Back -> {
-                        if (showPlaylist) {
-                            showPlaylist = false
-                            true
-                        } else false
-                    }
-                    // 最后处理确认选择
-                    showPlaylist && event.type == KeyEventType.KeyDown && event.key == Key.Enter -> {
-                        onPageSelected(videoInfo.pages[selectedIndex])
-                        showPlaylist = false
-                        true
-                    }
-                    else -> false
-                }
-            }
-    ) {
-        // 主视频播放区域
+    Box(modifier = modifier.fillMaxSize()) {
+        // 视频播放区域
         AndroidView(
             factory = { context ->
                 PlayerView(context).apply {
                     this.player = player
                     useController = true
+                    setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                        if (visibility == View.VISIBLE) {
+                            showPlaylist = false
+                        }
+                    })
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
         
-        // 右侧播放列表抽屉
+        // 播放列表抽屉
         AnimatedVisibility(
             visible = showPlaylist,
             enter = slideInHorizontally(initialOffsetX = { it }),
@@ -106,55 +74,45 @@ fun VideoPlayerScreen(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .width(320.dp)
+                .width(360.dp)
         ) {
             Surface(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .focusable(true),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
             ) {
-                PlaylistContent(
+                EnhancedPlaylistContent(
                     videoInfo = videoInfo,
-                    currentPage = videoInfo.currentPage,
                     selectedIndex = selectedIndex,
-                    onPageSelected = { page ->
+                    onPageSelected = { page, index ->
+                        selectedIndex = index
                         onPageSelected(page)
-                        showPlaylist = false
                     }
                 )
             }
         }
         
         // 控制按钮
-        Row(
+        ControlButtons(
+            videoInfo = videoInfo,
+            showPlaylist = showPlaylist,
+            onPlaylistToggle = { showPlaylist = !showPlaylist },
+            onQualityClick = { showQualityDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            if (videoInfo.isPlaylist) {
-                val interactionSource = remember { MutableInteractionSource() }
-                IconButton(
-                    onClick = { showPlaylist = !showPlaylist },
-                    modifier = Modifier.focusable(true, interactionSource)
-                ) {
-                    Icon(
-                        imageVector = if (showPlaylist) Icons.Default.Close else Icons.Default.List,
-                        contentDescription = if (showPlaylist) "关闭播放列表" else "显示播放列表"
-                    )
-                }
-            }
-            
-            IconButton(
-                onClick = { showQualityDialog = true },
-                modifier = Modifier.focusable(true)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "清晰度设置"
-                )
-            }
-        }
+                .padding(24.dp)
+        )
+    }
+    
+    // 清晰度选择对话框
+    if (showQualityDialog) {
+        QualitySelectionDialog(
+            qualities = videoInfo.qualities,
+            onQualitySelected = {
+                onQualitySelected(it)
+                showQualityDialog = false
+            },
+            onDismiss = { showQualityDialog = false }
+        )
     }
 }
 
@@ -313,4 +271,111 @@ private fun formatDuration(seconds: Int): String {
     } else {
         String.format("%02d:%02d", minutes, remainingSeconds)
     }
+}
+
+@Composable
+private fun ControlButtons(
+    videoInfo: VideoInfo,
+    showPlaylist: Boolean,
+    onPlaylistToggle: () -> Unit,
+    onQualityClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        if (videoInfo.isPlaylist) {
+            val interactionSource = remember { MutableInteractionSource() }
+            IconButton(
+                onClick = onPlaylistToggle,
+                modifier = Modifier.focusable(true, interactionSource)
+            ) {
+                Icon(
+                    imageVector = if (showPlaylist) Icons.Default.Close else Icons.Default.List,
+                    contentDescription = if (showPlaylist) "关闭播放列表" else "显示播放列表"
+                )
+            }
+        }
+        
+        IconButton(
+            onClick = onQualityClick,
+            modifier = Modifier.focusable(true)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "清晰度设置"
+            )
+        }
+    }
+}
+
+@Composable
+private fun EnhancedPlaylistContent(
+    videoInfo: VideoInfo,
+    selectedIndex: Int,
+    onPageSelected: (VideoPage, Int) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 标题栏
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 3.dp
+        ) {
+            Text(
+                text = videoInfo.title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(16.dp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
+        
+        // 自动滚动到选中项
+        LaunchedEffect(selectedIndex) {
+            listState.animateScrollToItem(
+                index = selectedIndex,
+                scrollOffset = 0  // 将选中项滚动到列表顶部
+            )
+        }
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 8.dp),
+            state = listState
+        ) {
+            items(videoInfo.pages) { page ->
+                val isSelected = page == videoInfo.pages[selectedIndex]
+                VideoPageItem(
+                    page = page,
+                    isSelected = isSelected,
+                    onClick = { onPageSelected(page, videoInfo.pages.indexOf(page)) },
+                    modifier = Modifier
+                        .focusable(true)
+                        .onKeyEvent { event ->
+                            when {
+                                event.type == KeyEventType.KeyDown && event.key == Key.Enter -> {
+                                    onPageSelected(page, videoInfo.pages.indexOf(page))
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QualitySelectionDialog(
+    qualities: List<Int>,
+    onQualitySelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    // Implementation of the QualitySelectionDialog
 } 

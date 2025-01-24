@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import android.util.Log
+import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.asStateFlow
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = VideoRepository(application)
@@ -26,17 +28,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
     
-    private val _dataSource = MutableStateFlow(false) // false 表示本地数据源
-    val dataSource: StateFlow<Boolean> = _dataSource
+    private val _dataSource = MutableStateFlow(DataSource.LOCAL)
+    val dataSource = _dataSource.asStateFlow()
     
     init {
         loadVideos()
     }
     
-    fun setDataSource(useRemote: Boolean) {
-        if (_dataSource.value != useRemote) {
-            _dataSource.value = useRemote
-            repository.setDataSource(useRemote)
+    enum class DataSource {
+        LOCAL,      // 本地视频
+        ONLINE,     // 在线视频
+        SEARCH      // 搜索
+    }
+    
+    fun setDataSource(source: DataSource) {
+        if (_dataSource.value != source) {
+            _dataSource.value = source
+            when (source) {
+                DataSource.LOCAL -> repository.setDataSource(false)
+                DataSource.ONLINE -> repository.setDataSource(true)
+                DataSource.SEARCH -> {} // 切换到搜索模式
+            }
             refresh()
         }
     }
