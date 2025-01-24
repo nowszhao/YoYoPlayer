@@ -4,15 +4,20 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import `fun`.coda.app.yoyoplayer.ui.FeaturedScreen
 import `fun`.coda.app.yoyoplayer.ui.theme.YoYoPlayerTheme
+import `fun`.coda.app.yoyoplayer.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: MainViewModel by viewModels()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -21,7 +26,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    VideoInputScreen(
+                    MainScreen(
                         onPlayVideo = { url ->
                             startVideoPlayer(url)
                         }
@@ -36,6 +41,30 @@ class MainActivity : ComponentActivity() {
             putExtra("video_url", videoUrl)
         }
         startActivity(intent)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(onPlayVideo: (String) -> Unit) {
+    var selectedTabIndex by remember { mutableStateOf(0) }
+    val tabs = listOf("精选", "搜索")
+    
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedTabIndex) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index },
+                    text = { Text(title) }
+                )
+            }
+        }
+        
+        when (selectedTabIndex) {
+            0 -> FeaturedScreen(onPlayVideo = onPlayVideo)
+            1 -> VideoInputScreen(onPlayVideo = onPlayVideo)
+        }
     }
 }
 

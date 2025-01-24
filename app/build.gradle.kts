@@ -82,4 +82,8 @@ dependencies {
     // 添加以下依赖
     implementation("androidx.tv:tv-foundation:1.0.0-alpha10")
     implementation("androidx.compose.foundation:foundation:1.5.4")
+
+    // ViewModel 相关依赖
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 }

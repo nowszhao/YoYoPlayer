@@ -1,0 +1,12 @@
+[
+    {
+        "source": "bilibili",
+        "tags": ["音乐", "演唱会"],
+        "videoUrl": "https://www.bilibili.com/video/BV16y4y1M7oT/?spm_id_from=333.788.top_right_bar_window_custom_collection.content.click&vd_source=79076c29b1d9e9bf6dd7b4585a93e6b7"
+    },
+    {
+        "source": "bilibili",
+        "tags": ["游戏", "实况"],
+        "videoUrl": "https://www.bilibili.com/video/BV1xM4y1v7uQ/?spm_id_from=333.1007.top_right_bar_window_default_collection.content.click"
+    }
+] 
