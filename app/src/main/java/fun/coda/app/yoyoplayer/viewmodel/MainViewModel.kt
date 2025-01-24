@@ -43,9 +43,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     enum class DataSource {
-        LOCAL,      // 本地视频
         ONLINE,     // 在线视频
-        SEARCH      // 搜索
+        SEARCH,      // 搜索
+        LOCAL      // 本地视频
     }
     
     fun setDataSource(source: DataSource) {
