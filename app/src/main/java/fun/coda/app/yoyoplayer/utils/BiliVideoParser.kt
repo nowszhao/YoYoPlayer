@@ -1,5 +1,6 @@
 package `fun`.coda.app.yoyoplayer.utils
 
+import android.content.Context
 import android.util.Log
 import `fun`.coda.app.yoyoplayer.network.BiliVideoService
 import retrofit2.Retrofit
@@ -10,7 +11,8 @@ import `fun`.coda.app.yoyoplayer.network.UgcSeason
 
 private const val TAG = "BiliVideoParser"
 
-class BiliVideoParser {
+class BiliVideoParser(private val context: Context) {
+    private val cookieManager = CookieManager(context)
     private val service = Retrofit.Builder()
         .baseUrl("https://api.bilibili.com/")
         .addConverterFactory(GsonConverterFactory.create())
@@ -26,8 +28,10 @@ class BiliVideoParser {
             
             Log.d(TAG, "Extracted BVID: $bvid, Page: $pageNum")
             
+            val cookie = cookieManager.getCookie()
+            
             // 首先获取视频信息以获取 cid
-            val infoResponse = service.getVideoInfo(bvid)
+            val infoResponse = service.getVideoInfo(bvid, cookie)
             if (!infoResponse.isSuccessful || infoResponse.body()?.code != 0) {
                 throw Exception("获取视频信息失败: ${infoResponse.body()?.message}")
             }
@@ -46,7 +50,11 @@ class BiliVideoParser {
             Log.d(TAG, "Got CID: $cid")
             
             // 获取视频 URL，尝试不同的 quality
-            val qualities = listOf(80, 64, 32, 16) // 1080P, 720P, 480P, 360P
+            val qualities = if (cookieManager.hasCookie()) {
+                listOf(120, 116, 80, 64, 32, 16) // 有登录时支持更高清晰度
+            } else {
+                listOf(80, 64, 32, 16)
+            }
             var lastError: Exception? = null
             
             for (quality in qualities) {
@@ -54,7 +62,8 @@ class BiliVideoParser {
                     val urlResponse = service.getVideoUrl(
                         bvid = bvid,
                         cid = cid,
-                        quality = quality
+                        quality = quality,
+                        cookie = cookie
                     )
                     Log.d(TAG, "URL Response for quality $quality: ${urlResponse.body()}")
                     

@@ -29,14 +29,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
     
-    private val _dataSource = MutableStateFlow(DataSource.LOCAL)
-    val dataSource = _dataSource.asStateFlow()
+    private val _dataSource = MutableStateFlow(DataSource.ONLINE)
+    val dataSource: StateFlow<DataSource> = _dataSource.asStateFlow()
     
     private val _tags = MutableStateFlow<List<Tag>>(emptyList())
     val tags = _tags.asStateFlow()
     
     private val _selectedTag = MutableStateFlow<Tag?>(null)
     val selectedTag = _selectedTag.asStateFlow()
+    
+    // 添加一个新的状态来保存原始视频列表
+    private val _originalVideoList = MutableStateFlow<List<VideoListItem>>(emptyList())
     
     init {
         loadVideos()
@@ -70,10 +73,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val tag = _selectedTag.value
             if (tag == null) {
                 // 如果没有选中标签，显示所有视频
-                loadVideos()
+                _videoList.value = _originalVideoList.value
             } else {
                 // 根据标签过滤视频
-                val filteredVideos = _videoList.value.filter { video ->
+                val filteredVideos = _originalVideoList.value.filter { video ->
                     video.tags?.contains(tag.name) == true
                 }
                 _videoList.value = filteredVideos
@@ -104,6 +107,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.getVideosWithDetails().collect { videos ->
                     Log.d(TAG, "收到视频列表更新: ${videos.size} 个视频")
                     Log.d(TAG, "视频列表内容: ${videos.map { it.title }}")
+                    _originalVideoList.value = videos  // 保存原始列表
                     _videoList.value = videos
                     updateTags(videos) // 更新标签列表
                     

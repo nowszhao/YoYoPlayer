@@ -27,7 +27,7 @@ import `fun`.coda.app.yoyoplayer.ui.VideoPlayerScreen
 
 class VideoPlayerActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
-    private val videoParser = BiliVideoParser()
+    private val videoParser by lazy { BiliVideoParser(this) }
     private val TAG = "VideoPlayerActivity"
     
     private var _errorMessage = mutableStateOf<String?>(null)

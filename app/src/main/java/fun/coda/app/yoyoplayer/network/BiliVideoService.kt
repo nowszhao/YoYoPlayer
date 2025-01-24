@@ -3,21 +3,24 @@ package `fun`.coda.app.yoyoplayer.network
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
+import retrofit2.http.Header
 
 interface BiliVideoService {
     @GET("x/web-interface/view")
     suspend fun getVideoInfo(
-        @Query("bvid") bvid: String
+        @Query("bvid") bvid: String,
+        @Header("Cookie") cookie: String
     ): Response<VideoInfoResponse>
 
     @GET("x/player/playurl")
     suspend fun getVideoUrl(
         @Query("bvid") bvid: String,
         @Query("cid") cid: Long,
-        @Query("qn") quality: Int = 80,
+        @Query("qn") quality: Int = 120,
         @Query("fnval") fnval: Int = 1,
         @Query("fnver") fnver: Int = 0,
         @Query("fourk") fourk: Int = 1,
+        @Header("Cookie") cookie: String,
         @Query("platform") platform: String = "html5",
         @Query("high_quality") highQuality: Int = 1
     ): Response<VideoUrlResponse>

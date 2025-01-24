@@ -49,6 +49,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import `fun`.coda.app.yoyoplayer.ui.components.TagBar
+import androidx.compose.ui.platform.LocalContext
+import `fun`.coda.app.yoyoplayer.utils.CookieManager
 
 @Composable
 fun FeaturedScreen(
@@ -161,19 +163,22 @@ private fun NavigationSidebar(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showCookieDialog by remember { mutableStateOf(false) }
+    val cookieManager = CookieManager(LocalContext.current)
+
     Column(
         modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "YoYo播放器",
+            text = "YoYo儿童播放器",
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(vertical = 24.dp)
         )
 
         NavigationButton(
             icon = Icons.Default.Cloud,
-            text = "在线视频",
+            text = "爸爸精选",
             selected = currentSource == MainViewModel.DataSource.ONLINE,
             onClick = { onSourceChanged(MainViewModel.DataSource.ONLINE) }
         )
@@ -187,7 +192,7 @@ private fun NavigationSidebar(
 
         NavigationButton(
             icon = Icons.Default.Storage,
-            text = "本地视频",
+            text = "本地测试",
             selected = currentSource == MainViewModel.DataSource.LOCAL,
             onClick = { onSourceChanged(MainViewModel.DataSource.LOCAL) }
         )
@@ -198,6 +203,23 @@ private fun NavigationSidebar(
             icon = Icons.Default.Refresh,
             text = "刷新",
             onClick = onRefresh
+        )
+
+        HorizontalDivider()
+        
+        // 添加Cookie设置按钮
+        TextButton(
+            onClick = { showCookieDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("设置Cookie")
+        }
+    }
+
+    if (showCookieDialog) {
+        CookieSettingDialog(
+            cookieManager = cookieManager,
+            onDismiss = { showCookieDialog = false }
         )
     }
 }

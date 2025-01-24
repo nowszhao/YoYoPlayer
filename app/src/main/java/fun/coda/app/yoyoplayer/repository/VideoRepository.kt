@@ -18,9 +18,9 @@ private const val TAG = "VideoRepository"
 class VideoRepository(
     private val context: Context,
     private val jsonParser: JsonParser = JsonParser(context),
-    private val videoParser: BiliVideoParser = BiliVideoParser()
+    private val videoParser: BiliVideoParser = BiliVideoParser(context)
 ) {
-    private var currentDataSource: VideoDataSource = LocalVideoDataSource(context)
+    private var currentDataSource: VideoDataSource = RemoteVideoDataSource()
     
     fun setDataSource(useRemote: Boolean) {
         currentDataSource = if (useRemote) {
