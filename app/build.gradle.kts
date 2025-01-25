@@ -89,4 +89,7 @@ dependencies {
 
     // 使用正确的 TV Material3 依赖
     implementation("androidx.tv:tv-material:1.0.0-alpha10")
+
+    // 添加 Splash Screen 依赖
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }

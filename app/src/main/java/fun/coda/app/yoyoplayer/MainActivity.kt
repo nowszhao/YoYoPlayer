@@ -11,7 +11,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import `fun`.coda.app.yoyoplayer.ui.FeaturedScreen
+import `fun`.coda.app.yoyoplayer.ui.SplashScreen
 import `fun`.coda.app.yoyoplayer.ui.theme.YoYoPlayerTheme
 import `fun`.coda.app.yoyoplayer.viewmodel.MainViewModel
 
@@ -20,17 +22,27 @@ class MainActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 启用系统 splash screen
+        installSplashScreen()
+        
         setContent {
             YoYoPlayerTheme {
+                var showSplash by remember { mutableStateOf(true) }
+                
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen(
-                        onPlayVideo = { url ->
-                            startVideoPlayer("https://www.bilibili.com/video/${url}")
-                        }
-                    )
+                    if (showSplash) {
+                        SplashScreen(onTimeout = { showSplash = false })
+                    } else {
+                        MainScreen(
+                            onPlayVideo = { url ->
+                                startVideoPlayer("https://www.bilibili.com/video/${url}")
+                            }
+                        )
+                    }
                 }
             }
         }
