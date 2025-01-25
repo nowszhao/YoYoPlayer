@@ -15,19 +15,21 @@ import `fun`.coda.app.yoyoplayer.data.source.VideoDataSource
 import kotlinx.coroutines.delay
 import `fun`.coda.app.yoyoplayer.utils.NetworkUtils
 import kotlin.time.Duration.Companion.seconds
+import `fun`.coda.app.yoyoplayer.utils.SettingsManager
 
 private const val TAG = "VideoRepository"
 
 class VideoRepository(
     private val context: Context,
     private val jsonParser: JsonParser = JsonParser(context),
-    private val videoParser: BiliVideoParser = BiliVideoParser(context)
+    private val videoParser: BiliVideoParser = BiliVideoParser(context),
+    private val settingsManager: SettingsManager = SettingsManager(context)
 ) {
-    private var currentDataSource: VideoDataSource = RemoteVideoDataSource()
+    private var currentDataSource: VideoDataSource = RemoteVideoDataSource(settingsManager)
     
     fun setDataSource(useRemote: Boolean) {
         currentDataSource = if (useRemote) {
-            RemoteVideoDataSource()
+            RemoteVideoDataSource(settingsManager)
         } else {
             LocalVideoDataSource(context)
         }
