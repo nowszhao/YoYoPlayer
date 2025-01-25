@@ -47,8 +47,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     enum class DataSource {
         ONLINE,     // 在线视频
-        SEARCH,      // 搜索
-        LOCAL      // 本地视频
+        SEARCH,     // 搜索
+        LOCAL,      // 本地视频
+        SETTINGS    // 全局设置
     }
     
     fun setDataSource(source: DataSource) {
@@ -58,6 +59,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 DataSource.LOCAL -> repository.setDataSource(false)
                 DataSource.ONLINE -> repository.setDataSource(true)
                 DataSource.SEARCH -> {} // 切换到搜索模式
+                DataSource.SETTINGS -> {} // 切换到设置模式，不需要特殊处理
             }
             refresh()
         }

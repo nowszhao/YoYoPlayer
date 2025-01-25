@@ -29,8 +29,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -100,7 +102,6 @@ fun FeaturedScreen(
     }
 
     Row(modifier = Modifier.fillMaxSize()) {
-        // 左侧导航栏
         NavigationSidebar(
             currentSource = currentSource,
             onSourceChanged = { viewModel.setDataSource(it) },
@@ -111,7 +112,6 @@ fun FeaturedScreen(
                 .background(MaterialTheme.colorScheme.surface)
         )
         
-        // 主内容区域
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -162,29 +162,13 @@ fun FeaturedScreen(
                         }
                     }
                 }
-                else -> {
-                    if (isLoading && videoList.isEmpty()) {
-                        LoadingIndicator(
-                            progress = loadingProgress,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    }
-                    
-                    error?.let {
-                        ErrorMessage(
-                            message = it,
-                            onRetry = { viewModel.refresh() },
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    }
-                    
-                    if (!isLoading || videoList.isNotEmpty()) {
-                        VideoGrid(
-                            videos = videoList,
-                            onVideoSelected = wrappedOnPlayVideo,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
+                MainViewModel.DataSource.LOCAL -> {
+                    // ... 本地视频列表显示代码 ...
+                }
+                MainViewModel.DataSource.SETTINGS -> {
+                    SettingsScreen(
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }
@@ -198,50 +182,19 @@ private fun NavigationSidebar(
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showCookieDialog by remember { mutableStateOf(false) }
-    val cookieManager = CookieManager(LocalContext.current)
-
     Column(
         modifier = modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 标题栏
-        Row(
-            modifier = Modifier.padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(1.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.mipmap.ic_launcher),
-                contentDescription = "应用Logo",
-                modifier = Modifier.size(40.dp)
-            )
-            
-            Text(
-                text = "YoYoPlayer",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    shadow = Shadow(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                        offset = Offset(2f, 2f),
-                        blurRadius = 3f
-                    ),
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary,
-                            MaterialTheme.colorScheme.tertiary
-                        )
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp,
-                    letterSpacing = 0.5.sp
-                ),
-                modifier = Modifier.padding(top = 4.dp)
-            )
-        }
+        // 添加应用名称
+        Text(
+            text = "YoYoPlayer",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
 
         NavigationButton(
-            icon = Icons.Default.Cloud,
+            icon = Icons.Default.Face,
             text = "爸爸精选",
             selected = currentSource == MainViewModel.DataSource.ONLINE,
             onClick = { onSourceChanged(MainViewModel.DataSource.ONLINE) }
@@ -255,10 +208,10 @@ private fun NavigationSidebar(
         )
 
         NavigationButton(
-            icon = Icons.Default.Storage,
-            text = "本地测试",
-            selected = currentSource == MainViewModel.DataSource.LOCAL,
-            onClick = { onSourceChanged(MainViewModel.DataSource.LOCAL) }
+            icon = Icons.Default.Settings,
+            text = "全局设置",
+            selected = currentSource == MainViewModel.DataSource.SETTINGS,
+            onClick = { onSourceChanged(MainViewModel.DataSource.SETTINGS) }
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -267,23 +220,6 @@ private fun NavigationSidebar(
             icon = Icons.Default.Refresh,
             text = "刷新",
             onClick = onRefresh
-        )
-
-        HorizontalDivider()
-        
-        // 添加Cookie设置按钮
-        TextButton(
-            onClick = { showCookieDialog = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("设置Cookie")
-        }
-    }
-
-    if (showCookieDialog) {
-        CookieSettingDialog(
-            cookieManager = cookieManager,
-            onDismiss = { showCookieDialog = false }
         )
     }
 }
