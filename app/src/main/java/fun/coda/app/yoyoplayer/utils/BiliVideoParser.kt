@@ -10,14 +10,48 @@ import `fun`.coda.app.yoyoplayer.network.VideoPage
 import `fun`.coda.app.yoyoplayer.network.UgcSeason
 import `fun`.coda.app.yoyoplayer.network.SubtitleItem
 import `fun`.coda.app.yoyoplayer.network.NetworkClient
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 
 private const val TAG = "BiliVideoParser"
+
+
+// 创建 HttpLoggingInterceptor 实例
+val loggingInterceptor = HttpLoggingInterceptor().apply {
+    level = HttpLoggingInterceptor.Level.BODY
+}
+
+
+val okHttpClient = OkHttpClient.Builder()
+    .addInterceptor(loggingInterceptor)
+    .addInterceptor { chain ->
+        val original = chain.request()
+        val requestBuilder = original.newBuilder()
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            .header("Accept", "application/json")
+        // 添加其他必要的请求头
+        val request = requestBuilder.build()
+        chain.proceed(request)
+    }
+    .build()
+
+//// 创建 Retrofit 实例
+//val retrofit = Retrofit.Builder()
+//    .baseUrl("https://api.bilibili.com/")
+//    .addConverterFactory(GsonConverterFactory.create())
+//    .client(okHttpClient)
+//    .build()
+//
+//// 创建服务接口实例
+//val biliVideoService = retrofit.create(BiliVideoService::class.java)
+
 
 class BiliVideoParser(private val context: Context) {
     private val cookieManager = CookieManager(context)
     private val service = Retrofit.Builder()
         .baseUrl("https://api.bilibili.com/")
-        .client(NetworkClient.create())
+//        .client(NetworkClient.create())
+        .client(okHttpClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
         .create(BiliVideoService::class.java)
@@ -112,12 +146,41 @@ class BiliVideoParser(private val context: Context) {
 
     private suspend fun getSubtitles(bvid: String, cid: Long, cookie: String): List<SubtitleItem> {
         try {
+            Log.d(TAG, "========== 开始获取字幕列表 ==========")
+            Log.d(TAG, "参数信息:")
+            Log.d(TAG, "- BVID: $bvid")
+            Log.d(TAG, "- CID: $cid")
+            Log.d(TAG, "- Cookie长度: ${cookie.length}")
+
             val response = service.getSubtitleInfo(bvid, cid, cookie)
+            
+            Log.d(TAG, "字幕API响应:")
+            Log.d(TAG, "- 是否成功: ${response.isSuccessful}")
+            Log.d(TAG, "- 响应码: ${response.code()}")
+            Log.d(TAG, "- 响应头: ${response.headers()}")
+
+            val subtitleData = response.body()?.data
+            if (subtitleData != null) {
+                Log.d(TAG, "字幕数据: $subtitleData")
+            } else {
+                Log.e(TAG, "字幕数据为空")
+            }
+
             if (response.isSuccessful && response.body()?.code == 0) {
-                return response.body()?.data?.subtitle?.list ?: emptyList()
+                val subtitles = response.body()?.data?.subtitle?.subtitles ?: emptyList()
+                Log.d(TAG, "获取到 ${subtitles.size} 个字幕")
+                subtitles.forEachIndexed { index, subtitle ->
+                    Log.d(TAG, "字幕 #$index:")
+                    Log.d(TAG, "- ID: ${subtitle.id}")
+                    Log.d(TAG, "- 语言: ${subtitle.lan}")
+                    Log.d(TAG, "- URL: ${subtitle.subtitle_url}")
+                }
+                return subtitles
             }
         } catch (e: Exception) {
-            Log.e(TAG, "获取字幕失败", e)
+            Log.e(TAG, "获取字幕列表失败", e)
+        } finally {
+            Log.d(TAG, "========== 字幕列表获取结束 ==========")
         }
         return emptyList()
     }
