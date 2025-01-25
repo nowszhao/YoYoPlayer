@@ -126,7 +126,7 @@ fun FeaturedScreen(
                 }
                 MainViewModel.DataSource.ONLINE -> {
                     Log.d("FeaturedScreen", "显示在线视频列表，共 ${videoList.size} 个视频")
-                    Column {
+                    Column(modifier = Modifier.fillMaxSize()) {
                         // 添加标签栏
                         TagBar(
                             tags = tags,
@@ -135,12 +135,18 @@ fun FeaturedScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                         
-                        // 视频网格
-                        Box(modifier = Modifier.weight(1f)) {
+                        // 修改这里的 Box 布局
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
                             if (isLoading && videoList.isEmpty()) {
                                 LoadingIndicator(
                                     progress = loadingProgress,
-                                    modifier = Modifier.align(Alignment.Center)
+                                    modifier = Modifier
+                                        .align(Alignment.Center)  // 使用 align 确保居中
+                                        .padding(16.dp)
                                 )
                             }
                             
