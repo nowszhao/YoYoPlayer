@@ -99,6 +99,9 @@ class VideoPlayerActivity : ComponentActivity() {
                                     loadSubtitle(subtitle)
                                 }
                             },
+                            onSpeedSelected = { speed ->
+                                changePlaybackSpeed(speed)
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -172,6 +175,10 @@ class VideoPlayerActivity : ComponentActivity() {
                 Log.e(TAG, "Error changing quality", e)
             }
         }
+    }
+
+    private fun changePlaybackSpeed(speed: Float) {
+        player?.setPlaybackSpeed(speed)
     }
 
     private suspend fun loadSubtitle(subtitleItem: SubtitleItem?) {
@@ -341,22 +348,27 @@ class VideoPlayerActivity : ComponentActivity() {
         return String.format("%02d:%02d:%06.3f", hours, minutes, secs)
     }
 
-    private fun createPlayerListener() = object : Player.Listener {
-        override fun onPlayerError(error: PlaybackException) {
-            Log.e(TAG, "Player error", error)
-            _errorMessage.value = "播放错误: ${error.message}"
-            _isLoading.value = false
-        }
-
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            when (playbackState) {
-                Player.STATE_READY -> {
-                    _isLoading.value = false
-                    _errorMessage.value = null
+    private fun createPlayerListener(): Player.Listener {
+        return object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                super.onPlaybackStateChanged(playbackState)
+                when (playbackState) {
+                    Player.STATE_READY -> {
+                        _isLoading.value = false
+                    }
+                    Player.STATE_BUFFERING -> {
+                        _isLoading.value = true
+                    }
+                    Player.STATE_ENDED -> {
+                        player?.seekTo(0)
+                        player?.pause()
+                    }
                 }
-                Player.STATE_ENDED -> _isLoading.value = false
-                Player.STATE_BUFFERING -> _isLoading.value = true
-                Player.STATE_IDLE -> _isLoading.value = false
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                super.onPlayerError(error)
+                _errorMessage.value = "播放错误: ${error.message}"
             }
         }
     }
@@ -375,6 +387,7 @@ fun VideoPlayerScreen(
     onPageSelected: (VideoPage) -> Unit,
     onQualitySelected: (Int) -> Unit,
     onSubtitleSelected: (SubtitleItem?) -> Unit,
+    onSpeedSelected: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showQualityDialog by remember { mutableStateOf(false) }

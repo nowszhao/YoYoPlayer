@@ -1,6 +1,8 @@
 package `fun`.coda.app.yoyoplayer.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.clickable
@@ -39,8 +41,13 @@ import `fun`.coda.app.yoyoplayer.network.SubtitleItem
 import `fun`.coda.app.yoyoplayer.ui.components.SubtitleSelectionDialog
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import `fun`.coda.app.yoyoplayer.ui.components.VideoControlBar
+import `fun`.coda.app.yoyoplayer.ui.components.SpeedSelectionDialog
+import androidx.compose.ui.graphics.Color
+import android.util.Log
 
 private const val TAG = "VideoPlayerScreen"
 
@@ -51,66 +58,80 @@ fun VideoPlayerScreen(
     onPageSelected: (VideoPage) -> Unit,
     onQualitySelected: (Int) -> Unit,
     onSubtitleSelected: (SubtitleItem?) -> Unit,
+    onSpeedSelected: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showPlaylist by remember { mutableStateOf(false) }
     var showQualityDialog by remember { mutableStateOf(false) }
+    var showSpeedDialog by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
-    var selectedIndex by remember { mutableStateOf(0) }
     var selectedSubtitle by remember { mutableStateOf<SubtitleItem?>(null) }
+    var showControls by remember { mutableStateOf(false) }
+    var isVideoAreaFocused by remember { mutableStateOf(true) }
     
+    // 确保 FocusRequester 在整个组件生命周期中保持稳定
+    val videoAreaFocusRequester = remember { FocusRequester() }
+    val controlBarFocusRequester = remember { FocusRequester() }
+
+    // 初始化焦点
+    LaunchedEffect(Unit) {
+        videoAreaFocusRequester.requestFocus()
+    }
+
     // 处理返回键
-    BackHandler(enabled = showPlaylist) {
-        showPlaylist = false
+    BackHandler(enabled = showPlaylist || showControls) {
+        if (showPlaylist) {
+            showPlaylist = false
+        } else if (showControls) {
+            showControls = false
+            player.play()
+        }
     }
     
     Box(modifier = modifier.fillMaxSize()) {
-        // 视频播放区域
         AndroidView(
-            factory = { context ->
-                PlayerView(context).apply {
-                    this.player = player
-                    useController = true
-                    setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-                        if (visibility == View.VISIBLE) {
-                            showPlaylist = false
-                        }
-                    })
-                }
-            },
             modifier = Modifier
                 .fillMaxSize()
-                .focusable(!showPlaylist) // 当播放列表显示时禁用焦点
                 .onKeyEvent { keyEvent ->
                     when {
                         keyEvent.type == KeyEventType.KeyDown -> {
                             when (keyEvent.nativeKeyEvent?.keyCode) {
-                                KeyEvent.KEYCODE_DPAD_CENTER,
-                                KeyEvent.KEYCODE_ENTER,
-                                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                                    if (!showPlaylist) {
-                                        if (player.isPlaying) player.pause() else player.play()
+                                KeyEvent.KEYCODE_DPAD_CENTER, 
+                                KeyEvent.KEYCODE_ENTER -> {
+                                    if (!showControls) {
+                                        showControls = true
+                                        player.pause()
+                                        true
+                                    } else {
+                                        if (isVideoAreaFocused) {
+                                            player.playWhenReady = !player.playWhenReady
+                                            if (player.playWhenReady) {
+                                                showControls = false
+                                            }
+                                            true
+                                        } else false
+                                    }
+                                }
+                                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                    if (isVideoAreaFocused && showControls) {
+                                        isVideoAreaFocused = false
+                                        try {
+                                            controlBarFocusRequester.requestFocus()
+                                        } catch (e: IllegalStateException) {
+                                            Log.e(TAG, "Failed to request focus for control bar", e)
+                                        }
                                         true
                                     } else false
                                 }
                                 KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                    if (!showPlaylist) {
-                                        val newPosition = (player.currentPosition - 10_000).coerceAtLeast(0)
-                                        player.seekTo(newPosition)
+                                    if (isVideoAreaFocused) {
+                                        player.seekBack()
                                         true
                                     } else false
                                 }
                                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                    if (!showPlaylist) {
-                                        val newPosition = (player.currentPosition + 10_000)
-                                            .coerceAtMost(player.duration)
-                                        player.seekTo(newPosition)
-                                        true
-                                    } else false
-                                }
-                                KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                    if (videoInfo.isPlaylist && !showPlaylist) {
-                                        showPlaylist = true
+                                    if (isVideoAreaFocused) {
+                                        player.seekForward()
                                         true
                                     } else false
                                 }
@@ -120,47 +141,113 @@ fun VideoPlayerScreen(
                         else -> false
                     }
                 }
+                .focusRequester(videoAreaFocusRequester)
+                .focusable(true),
+            factory = { context ->
+                PlayerView(context).apply {
+                    this.player = player
+                    useController = false
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                    
+                    // 移除所有默认控件
+                    setShowNextButton(false)
+                    setShowPreviousButton(false)
+                    setShowFastForwardButton(false)
+                    setShowRewindButton(false)
+                    setShowShuffleButton(false)
+                    setShowSubtitleButton(false)
+                    setShowVrButton(false)
+                }
+            },
+            update = { view ->
+                view.player = player
+            }
         )
+
+        // 自定义控制栏
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.7f))
+            ) {
+                // 进度条
+                if (player.duration > 0) {
+                    Slider(
+                        value = player.currentPosition.toFloat(),
+                        onValueChange = { player.seekTo(it.toLong()) },
+                        valueRange = 0f..player.duration.toFloat(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    )
+                    
+                    // 时间显示
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = formatDuration((player.currentPosition / 1000).toInt()),
+                            color = Color.White
+                        )
+                        Text(
+                            text = formatDuration((player.duration / 1000).toInt()),
+                            color = Color.White
+                        )
+                    }
+                }
+
+                // 控制按钮栏
+                VideoControlBar(
+                    isPlaylist = videoInfo.isPlaylist,
+                    hasSubtitles = videoInfo.subtitles.isNotEmpty(),
+                    onPlaylistClick = { showPlaylist = !showPlaylist },
+                    onSubtitleClick = { showSubtitleDialog = true },
+                    onQualityClick = { showQualityDialog = true },
+                    onSpeedClick = { showSpeedDialog = true },
+                    onFocusedChanged = { focused ->
+                        if (!focused) {
+                            isVideoAreaFocused = true
+                            try {
+                                videoAreaFocusRequester.requestFocus()
+                            } catch (e: IllegalStateException) {
+                                Log.e(TAG, "Failed to request focus for video area", e)
+                            }
+                        }
+                    },
+                    modifier = Modifier.focusRequester(controlBarFocusRequester)
+                )
+            }
+        }
         
         // 播放列表抽屉
         AnimatedVisibility(
             visible = showPlaylist,
             enter = slideInHorizontally(initialOffsetX = { it }),
             exit = slideOutHorizontally(targetOffsetX = { it }),
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .width(360.dp)
+            modifier = Modifier.align(Alignment.CenterEnd)
         ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-            ) {
-                PlaylistContent(
-                    videoInfo = videoInfo,
-                    selectedIndex = selectedIndex,
-                    showPlaylist = showPlaylist,
-                    onPageSelected = { page, index ->
-                        selectedIndex = index
-                        onPageSelected(page)
-                        showPlaylist = false
-                    },
-                    onClose = { showPlaylist = false }
-                )
-            }
+            PlaylistDrawer(
+                videoInfo = videoInfo,
+                onPageSelected = { page ->
+                    onPageSelected(page)
+                    showPlaylist = false
+                    showControls = false
+                    player.play()
+                },
+                onDismiss = { 
+                    showPlaylist = false 
+                }
+            )
         }
-        
-        // 控制按钮
-        ControlButtons(
-            videoInfo = videoInfo,
-            showPlaylist = showPlaylist,
-            onPlaylistToggle = { showPlaylist = !showPlaylist },
-            onQualityClick = { showQualityDialog = true },
-            onSubtitleClick = { showSubtitleDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(24.dp)
-        )
     }
     
     // 清晰度选择对话框
@@ -188,185 +275,197 @@ fun VideoPlayerScreen(
             onDismiss = { showSubtitleDialog = false }
         )
     }
-}
 
-@Composable
-private fun PlaylistContent(
-    videoInfo: VideoInfo,
-    selectedIndex: Int,
-    showPlaylist: Boolean,
-    onPageSelected: (VideoPage, Int) -> Unit,
-    onClose: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            tonalElevation = 3.dp
-        ) {
-            Text(
-                text = videoInfo.title,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(16.dp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        
-        val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
-        var currentFocusIndex by remember { mutableStateOf(selectedIndex) }
-        
-        // 自动滚动到选中项
-        LaunchedEffect(currentFocusIndex) {
-            listState.animateScrollToItem(
-                index = currentFocusIndex,
-                scrollOffset = 0
-            )
-        }
-        
-        // 当播放列表显示时自动请求焦点
-        val focusRequester = remember { FocusRequester() }
-        LaunchedEffect(showPlaylist) {
-            if (showPlaylist) {
-                focusRequester.requestFocus()
+    if (showSpeedDialog) {
+        SpeedSelectionDialog(
+            currentSpeed = player.playbackParameters.speed,
+            onSpeedSelected = { speed ->
+                onSpeedSelected(speed)
+                showSpeedDialog = false
+            },
+            onDismiss = { showSpeedDialog = false }
+        )
+    }
+
+    // 处理控制栏显示/隐藏时的焦点
+    LaunchedEffect(showControls) {
+        if (showControls) {
+            isVideoAreaFocused = false
+            try {
+                controlBarFocusRequester.requestFocus()
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "Failed to request focus during controls visibility change", e)
             }
-        }
-        
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .focusRequester(focusRequester)
-                .focusable(true)
-                .onKeyEvent { event ->
-                    when {
-                        event.type == KeyEventType.KeyDown -> {
-                            when (event.nativeKeyEvent?.keyCode) {
-                                KeyEvent.KEYCODE_DPAD_UP -> {
-                                    if (currentFocusIndex > 0) {
-                                        currentFocusIndex--
-                                        true
-                                    } else false
-                                }
-                                KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                    if (currentFocusIndex < videoInfo.pages.size - 1) {
-                                        currentFocusIndex++
-                                        true
-                                    } else false
-                                }
-                                KeyEvent.KEYCODE_DPAD_CENTER,
-                                KeyEvent.KEYCODE_ENTER,
-                                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                                    onPageSelected(videoInfo.pages[currentFocusIndex], currentFocusIndex)
-                                    true
-                                }
-                                KeyEvent.KEYCODE_BACK -> {
-                                    onClose()
-                                    true
-                                }
-                                else -> false
-                            }
-                        }
-                        else -> false
-                    }
-                },
-            contentPadding = PaddingValues(vertical = 8.dp),
-            state = listState
-        ) {
-            items(videoInfo.pages) { page ->
-                val isSelected = videoInfo.pages.indexOf(page) == currentFocusIndex
-                VideoPageItem(
-                    page = page,
-                    isSelected = isSelected,
-                    onClick = { 
-                        val index = videoInfo.pages.indexOf(page)
-                        currentFocusIndex = index
-                        onPageSelected(page, index)
-                    }
-                )
+        } else {
+            isVideoAreaFocused = true
+            try {
+                videoAreaFocusRequester.requestFocus()
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "Failed to request focus during controls visibility change", e)
             }
         }
     }
 }
 
 @Composable
-private fun VideoPageItem(
+private fun PlaylistDrawer(
+    videoInfo: VideoInfo,
+    onPageSelected: (VideoPage) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var currentFocusIndex by remember { mutableStateOf(0) }
+    val listState = rememberLazyListState()
+    val focusRequester = remember { FocusRequester() }
+
+    // 自动获取焦点
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    // 自动滚动到当前选中项
+    LaunchedEffect(currentFocusIndex) {
+        listState.animateScrollToItem(currentFocusIndex)
+    }
+
+    Surface(
+        modifier = Modifier
+            .width(320.dp)
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        Column {
+            // 标题栏
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "选集列表",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "关闭")
+                }
+            }
+
+            // 播放列表
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+                    .onKeyEvent { keyEvent ->
+                        when {
+                            keyEvent.type == KeyEventType.KeyDown -> {
+                                when (keyEvent.nativeKeyEvent?.keyCode) {
+                                    KeyEvent.KEYCODE_DPAD_UP -> {
+                                        if (currentFocusIndex > 0) {
+                                            currentFocusIndex--
+                                            true
+                                        } else false
+                                    }
+                                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                        if (currentFocusIndex < videoInfo.pages.size - 1) {
+                                            currentFocusIndex++
+                                            true
+                                        } else false
+                                    }
+                                    KeyEvent.KEYCODE_DPAD_CENTER,
+                                    KeyEvent.KEYCODE_ENTER -> {
+                                        onPageSelected(videoInfo.pages[currentFocusIndex])
+                                        true
+                                    }
+                                    KeyEvent.KEYCODE_BACK -> {
+                                        onDismiss()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                            else -> false
+                        }
+                    }
+                    .focusable(true)
+            ) {
+                items(videoInfo.pages) { page ->
+                    PlaylistItem(
+                        page = page,
+                        isSelected = page == videoInfo.currentPage,
+                        isFocused = videoInfo.pages.indexOf(page) == currentFocusIndex,
+                        onClick = { onPageSelected(page) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistItem(
     page: VideoPage,
     isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    isFocused: Boolean,
+    onClick: () -> Unit
 ) {
-    Surface(
-        modifier = modifier
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
-        color = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
-        shape = RoundedCornerShape(4.dp),  // 添加圆角
-        tonalElevation = if (isSelected) 8.dp else 1.dp
+            .clickable(onClick = onClick)
+            .background(
+                when {
+                    isSelected -> MaterialTheme.colorScheme.primaryContainer
+                    isFocused -> MaterialTheme.colorScheme.secondaryContainer
+                    else -> Color.Transparent
+                }
+            )
+            .padding(8.dp)
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // 缩略图
+        AsyncImage(
+            model = page.pic,
+            contentDescription = null,
             modifier = Modifier
-                .padding(12.dp)
-                .height(IntrinsicSize.Min),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically  // 添加垂直居中对齐
+                .width(120.dp)
+                .aspectRatio(16f/9f)
+                .clip(RoundedCornerShape(4.dp)),
+            contentScale = ContentScale.Crop
+        )
+        
+        // 文字信息
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 添加序号
             Text(
-                text = "${page.page}",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (isSelected) {
+                text = page.part,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = if (isFocused || isSelected) {
                     MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier.width(32.dp)
+                }
             )
             
-            // 缩略图
-            AsyncImage(
-                model = page.pic,
-                contentDescription = null,
-                modifier = Modifier
-                    .width(120.dp)
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(4.dp)),
-                contentScale = ContentScale.Crop
+            Text(
+                text = formatDuration(page.duration),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isFocused || isSelected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                }
             )
-            
-            // 文字信息
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = page.part,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                
-                Text(
-                    text = formatDuration(page.duration),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    }
-                )
-            }
         }
     }
 }
@@ -381,58 +480,6 @@ private fun formatDuration(seconds: Int): String {
         String.format("%d:%02d:%02d", hours, minutes, remainingSeconds)
     } else {
         String.format("%02d:%02d", minutes, remainingSeconds)
-    }
-}
-
-@Composable
-private fun ControlButtons(
-    videoInfo: VideoInfo,
-    showPlaylist: Boolean,
-    onPlaylistToggle: () -> Unit,
-    onQualityClick: () -> Unit,
-    onSubtitleClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
-        if (videoInfo.isPlaylist) {
-            val interactionSource = remember { MutableInteractionSource() }
-            IconButton(
-                onClick = onPlaylistToggle,
-                modifier = Modifier.focusable(true, interactionSource)
-            ) {
-                Icon(
-                    imageVector = if (showPlaylist) Icons.Default.Close else Icons.Default.List,
-                    contentDescription = if (showPlaylist) "关闭播放列表" else "显示播放列表"
-                )
-            }
-        }
-        
-        // 添加字幕按钮
-        if (videoInfo.subtitles.isNotEmpty()) {
-            IconButton(
-                onClick = onSubtitleClick,
-                modifier = Modifier.focusable(true)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Subtitles,
-                    contentDescription = "字幕设置"
-                )
-            }
-        }
-        
-        IconButton(
-            onClick = onQualityClick,
-            modifier = Modifier.focusable(true)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "清晰度设置"
-            )
-        }
     }
 }
 
