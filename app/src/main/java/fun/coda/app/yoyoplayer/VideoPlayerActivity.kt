@@ -53,6 +53,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import android.graphics.Color
+import android.util.TypedValue
+import androidx.core.view.marginBottom
+import `fun`.coda.app.yoyoplayer.model.SubtitleSettings
+import androidx.media3.ui.CaptionStyleCompat
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 class VideoPlayerActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
@@ -63,6 +70,42 @@ class VideoPlayerActivity : ComponentActivity() {
     private var _isLoading = mutableStateOf(true)
     private var _videoInfo = mutableStateOf<VideoInfo?>(null)
     private var currentSubtitleUrl = ""
+    private var currentSubtitleSettings = mutableStateOf(SubtitleSettings())
+    
+    private var _playerView: PlayerView? = null
+    
+    init {
+        snapshotFlow { currentSubtitleSettings.value }
+            .onEach { applySubtitleStyle() }
+            .launchIn(lifecycleScope)
+    }
+    
+    fun updatePlayerView(view: PlayerView) {
+        _playerView = view
+        applySubtitleStyle()
+    }
+    
+    private fun applySubtitleStyle() {
+        _playerView?.let { view ->
+
+            println("#############~~~~~~~~~~~~~~~~~~~~")
+
+            val subtitleStyle = CaptionStyleCompat(
+                Color.WHITE,
+                Color.TRANSPARENT,
+                Color.TRANSPARENT,
+                CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                Color.BLACK,
+                null
+            )
+            view.subtitleView?.setStyle(subtitleStyle)
+            view.subtitleView?.setPadding(0, 0, 0, currentSubtitleSettings.value.marginBottom.toInt())
+        }
+    }
+    
+    fun updateSubtitleSettings(settings: SubtitleSettings) {
+        currentSubtitleSettings.value = settings
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +124,10 @@ class VideoPlayerActivity : ComponentActivity() {
                         VideoPlayerScreen(
                             videoInfo = info,
                             player = player!!,
+                            subtitleSettings = currentSubtitleSettings.value,
+                            onSubtitleSettingsChanged = { settings ->
+                                updateSubtitleSettings(settings)
+                            },
                             onPageSelected = { page ->
                                 lifecycleScope.launch {
                                     val bvid = videoParser.extractBvid(videoUrl)
@@ -145,6 +192,7 @@ class VideoPlayerActivity : ComponentActivity() {
     private fun setupPlayer(videoInfo: VideoInfo) {
         player?.apply {
             setMediaItem(MediaItem.fromUri(videoInfo.url))
+            
             prepare()
             playWhenReady = true
             addListener(createPlayerListener())
@@ -378,103 +426,4 @@ class VideoPlayerActivity : ComponentActivity() {
         player?.release()
         player = null
     }
-}
-
-@Composable
-fun VideoPlayerScreen(
-    videoInfo: VideoInfo,
-    player: ExoPlayer,
-    onPageSelected: (VideoPage) -> Unit,
-    onQualitySelected: (Int) -> Unit,
-    onSubtitleSelected: (SubtitleItem?) -> Unit,
-    onSpeedSelected: (Float) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var showQualityDialog by remember { mutableStateOf(false) }
-    var showSubtitleDialog by remember { mutableStateOf(false) }
-    var selectedSubtitle by remember { mutableStateOf<SubtitleItem?>(null) }
-
-    Column(modifier = modifier) {
-        AndroidView(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            factory = { context ->
-                PlayerView(context).apply {
-                    this.player = player
-                }
-            }
-        )
-
-        Button(
-            onClick = { showQualityDialog = true },
-            modifier = Modifier
-                .padding(16.dp)
-                .width(200.dp)
-        ) {
-            Text("切换清晰度")
-        }
-
-        Button(
-            onClick = { showSubtitleDialog = true },
-            modifier = Modifier
-                .padding(16.dp)
-                .width(200.dp)
-        ) {
-            Text("选择字幕")
-        }
-    }
-
-    if (showQualityDialog) {
-        AlertDialog(
-            onDismissRequest = { showQualityDialog = false },
-            title = { Text("选择清晰度") },
-            text = {
-                Column {
-                    videoInfo.qualities.forEach { quality ->
-                        Button(
-                            onClick = {
-                                onQualitySelected(quality)
-                                showQualityDialog = false
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Text(getQualityText(quality))
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showQualityDialog = false }) {
-                    Text("取消")
-                }
-            }
-        )
-    }
-
-    if (showSubtitleDialog) {
-        SubtitleSelectionDialog(
-            subtitles = videoInfo.subtitles,
-            selectedSubtitle = selectedSubtitle,
-            onSubtitleSelected = { subtitle ->
-                selectedSubtitle = subtitle
-                onSubtitleSelected(subtitle)
-                showSubtitleDialog = false
-            },
-            onDismiss = { showSubtitleDialog = false }
-        )
-    }
-}
-
-fun getQualityText(quality: Int): String = when(quality) {
-    120 -> "4K"
-    116 -> "1080P60"
-    80 -> "1080P"
-    64 -> "720P"
-    32 -> "480P"
-    16 -> "360P"
-    else -> "${quality}P"
 } 

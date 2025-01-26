@@ -23,6 +23,7 @@ fun VideoControlBar(
     hasSubtitles: Boolean,
     onPlaylistClick: () -> Unit,
     onSubtitleClick: () -> Unit,
+    onSubtitleSettingsClick: () -> Unit,
     onQualityClick: () -> Unit,
     onSpeedClick: () -> Unit,
     onFocusedChanged: (Boolean) -> Unit,
@@ -32,10 +33,13 @@ fun VideoControlBar(
     val buttonRefs = remember { mutableListOf<FocusRequester>() }
     
     val buttons = buildList {
-        if (isPlaylist) add(Pair("选集", onPlaylistClick))
-        if (hasSubtitles) add(Pair("字幕", onSubtitleClick))
-        add(Pair("清晰度", onQualityClick))
-        add(Pair("倍速", onSpeedClick))
+        if (isPlaylist) add(Triple("选集", Icons.Default.List, onPlaylistClick))
+        if (hasSubtitles) {
+            add(Triple("字幕", Icons.Default.Subtitles, onSubtitleClick))
+            add(Triple("字幕设置", Icons.Default.Settings, onSubtitleSettingsClick))
+        }
+        add(Triple("清晰度", Icons.Default.Settings, onQualityClick))
+        add(Triple("倍速", Icons.Default.Speed, onSpeedClick))
     }
 
     Row(
@@ -46,7 +50,7 @@ fun VideoControlBar(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        buttons.forEachIndexed { index, (text, onClick) ->
+        buttons.forEachIndexed { index, (text, icon, onClick) ->
             val buttonFocusRequester = remember { FocusRequester() }
             buttonRefs.add(buttonFocusRequester)
             
@@ -91,12 +95,7 @@ fun VideoControlBar(
                     }
             ) {
                 Icon(
-                    imageVector = when(text) {
-                        "选集" -> Icons.Default.List
-                        "字幕" -> Icons.Default.Subtitles
-                        "清晰度" -> Icons.Default.Settings
-                        else -> Icons.Default.Speed
-                    },
+                    imageVector = icon,
                     contentDescription = text,
                     tint = if (index == currentFocusIndex) {
                         MaterialTheme.colorScheme.primary

@@ -48,6 +48,9 @@ import `fun`.coda.app.yoyoplayer.ui.components.VideoControlBar
 import `fun`.coda.app.yoyoplayer.ui.components.SpeedSelectionDialog
 import androidx.compose.ui.graphics.Color
 import android.util.Log
+import `fun`.coda.app.yoyoplayer.VideoPlayerActivity
+import `fun`.coda.app.yoyoplayer.model.SubtitleSettings
+import `fun`.coda.app.yoyoplayer.ui.components.SubtitleSettingsDialog
 
 private const val TAG = "VideoPlayerScreen"
 
@@ -55,6 +58,8 @@ private const val TAG = "VideoPlayerScreen"
 fun VideoPlayerScreen(
     videoInfo: VideoInfo,
     player: ExoPlayer,
+    subtitleSettings: SubtitleSettings,
+    onSubtitleSettingsChanged: (SubtitleSettings) -> Unit,
     onPageSelected: (VideoPage) -> Unit,
     onQualitySelected: (Int) -> Unit,
     onSubtitleSelected: (SubtitleItem?) -> Unit,
@@ -65,6 +70,7 @@ fun VideoPlayerScreen(
     var showQualityDialog by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
+    var showSubtitleSettingsDialog by remember { mutableStateOf(false) }
     var selectedSubtitle by remember { mutableStateOf<SubtitleItem?>(null) }
     var showControls by remember { mutableStateOf(false) }
     var isVideoAreaFocused by remember { mutableStateOf(true) }
@@ -146,9 +152,6 @@ fun VideoPlayerScreen(
             factory = { context ->
                 PlayerView(context).apply {
                     this.player = player
-                    useController = false
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
-                    
                     // 移除所有默认控件
                     setShowNextButton(false)
                     setShowPreviousButton(false)
@@ -157,6 +160,9 @@ fun VideoPlayerScreen(
                     setShowShuffleButton(false)
                     setShowSubtitleButton(false)
                     setShowVrButton(false)
+                    
+                    // 更新 Activity 中的 PlayerView
+                    (context as? VideoPlayerActivity)?.updatePlayerView(this)
                 }
             },
             update = { view ->
@@ -211,6 +217,7 @@ fun VideoPlayerScreen(
                     hasSubtitles = videoInfo.subtitles.isNotEmpty(),
                     onPlaylistClick = { showPlaylist = !showPlaylist },
                     onSubtitleClick = { showSubtitleDialog = true },
+                    onSubtitleSettingsClick = { showSubtitleSettingsDialog = true },
                     onQualityClick = { showQualityDialog = true },
                     onSpeedClick = { showSpeedDialog = true },
                     onFocusedChanged = { focused ->
@@ -284,6 +291,17 @@ fun VideoPlayerScreen(
                 showSpeedDialog = false
             },
             onDismiss = { showSpeedDialog = false }
+        )
+    }
+
+    // 添加字幕设置对话框
+    if (showSubtitleSettingsDialog) {
+        SubtitleSettingsDialog(
+            currentSettings = subtitleSettings,
+            onSettingsChanged = { settings ->
+                onSubtitleSettingsChanged(settings)
+            },
+            onDismiss = { showSubtitleSettingsDialog = false }
         )
     }
 
@@ -428,15 +446,15 @@ private fun PlaylistItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 缩略图
-        AsyncImage(
-            model = page.pic,
-            contentDescription = null,
-            modifier = Modifier
-                .width(120.dp)
-                .aspectRatio(16f/9f)
-                .clip(RoundedCornerShape(4.dp)),
-            contentScale = ContentScale.Crop
-        )
+        // AsyncImage(
+        //     model = page.pic,
+        //     contentDescription = null,
+        //     modifier = Modifier
+        //         .width(120.dp)
+        //         .aspectRatio(16f/9f)
+        //         .clip(RoundedCornerShape(4.dp)),
+        //     contentScale = ContentScale.Crop
+        // )
         
         // 文字信息
         Column(
