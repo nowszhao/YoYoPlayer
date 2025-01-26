@@ -60,6 +60,7 @@ import `fun`.coda.app.yoyoplayer.model.SubtitleSettings
 import androidx.media3.ui.CaptionStyleCompat
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.delay
 
 class VideoPlayerActivity : ComponentActivity() {
     private var player: ExoPlayer? = null
@@ -73,6 +74,9 @@ class VideoPlayerActivity : ComponentActivity() {
     private var currentSubtitleSettings = mutableStateOf(SubtitleSettings())
     
     private var _playerView: PlayerView? = null
+    private var _isAutoPlayEnabled = mutableStateOf(true)
+    private var _showNextVideoPrompt = mutableStateOf(false)
+    private var _countdownSeconds = mutableStateOf(5)
     
     init {
         snapshotFlow { currentSubtitleSettings.value }
@@ -118,6 +122,8 @@ class VideoPlayerActivity : ComponentActivity() {
                 val errorMessage by remember { _errorMessage }
                 val isLoading by remember { _isLoading }
                 val videoInfo by remember { _videoInfo }
+                val showNextVideoPrompt by remember { _showNextVideoPrompt }
+                val countdownSeconds by remember { _countdownSeconds }
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     videoInfo?.let { info ->
@@ -168,6 +174,34 @@ class VideoPlayerActivity : ComponentActivity() {
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .padding(16.dp)
+                        )
+                    }
+
+                    if (showNextVideoPrompt) {
+                        AlertDialog(
+                            onDismissRequest = { 
+                                _showNextVideoPrompt.value = false
+                                player?.seekTo(0)
+                                player?.pause()
+                            },
+                            title = { Text("即将播放下一集") },
+                            text = { Text("将在 $countdownSeconds 秒后自动播放下一集") },
+                            confirmButton = {
+                                TextButton(onClick = { playNextVideo() }) {
+                                    Text("立即播放")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { 
+                                        _showNextVideoPrompt.value = false
+                                        player?.seekTo(0)
+                                        player?.pause()
+                                    }
+                                ) {
+                                    Text("取消")
+                                }
+                            }
                         )
                     }
                 }
@@ -408,8 +442,12 @@ class VideoPlayerActivity : ComponentActivity() {
                         _isLoading.value = true
                     }
                     Player.STATE_ENDED -> {
-                        player?.seekTo(0)
-                        player?.pause()
+                        if (_isAutoPlayEnabled.value) {
+                            handleVideoCompletion()
+                        } else {
+                            player?.seekTo(0)
+                            player?.pause()
+                        }
                     }
                 }
             }
@@ -417,6 +455,51 @@ class VideoPlayerActivity : ComponentActivity() {
             override fun onPlayerError(error: PlaybackException) {
                 super.onPlayerError(error)
                 _errorMessage.value = "播放错误: ${error.message}"
+            }
+        }
+    }
+
+    private fun handleVideoCompletion() {
+        val currentVideoInfo = _videoInfo.value ?: return
+        val currentPageIndex = currentVideoInfo.pages.indexOf(currentVideoInfo.currentPage)
+        
+        if (currentPageIndex < currentVideoInfo.pages.size - 1) {
+            _showNextVideoPrompt.value = true
+            _countdownSeconds.value = 5
+            
+            lifecycleScope.launch {
+                while (_countdownSeconds.value > 0 && _showNextVideoPrompt.value) {
+                    delay(1000)
+                    _countdownSeconds.value--
+                    
+                    if (_countdownSeconds.value == 0 && _showNextVideoPrompt.value) {
+                        playNextVideo()
+                    }
+                }
+            }
+        } else {
+            player?.seekTo(0)
+            player?.pause()
+        }
+    }
+
+    private fun playNextVideo() {
+        val currentVideoInfo = _videoInfo.value ?: return
+        val currentPageIndex = currentVideoInfo.pages.indexOf(currentVideoInfo.currentPage)
+        
+        if (currentPageIndex < currentVideoInfo.pages.size - 1) {
+            val nextPage = currentVideoInfo.pages[currentPageIndex + 1]
+            lifecycleScope.launch {
+                try {
+                    // 使用原始的 videoUrl 来获取 bvid
+                    val videoUrl = intent.getStringExtra("video_url") ?: return@launch
+                    val bvid = videoParser.extractBvid(videoUrl)
+                    playVideo(bvid, nextPage)
+                    _showNextVideoPrompt.value = false
+                } catch (e: Exception) {
+                    Log.e(TAG, "播放下一集失败", e)
+                    _errorMessage.value = "播放下一集失败: ${e.message}"
+                }
             }
         }
     }
